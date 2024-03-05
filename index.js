@@ -17,12 +17,9 @@ const urls = [
 ]
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
-const urlToText = (url) => {
-    console.log(`Reading ${url} ...`)
-    return extract(url).then(res => Object.assign(res, {text: convert(res.content)}))
-}
+const urlToText = (url) => extract(url).then(res => Object.assign(res, {text: convert(res.content)}))
 
-const prompt = async (urlParse, current) => {
+const makePrompt = async (urlParse, current) => {
     const urlPrompt = dedent(`
         I have extracted the following information from this site:
         url: ${urlParse.url},
@@ -32,7 +29,7 @@ const prompt = async (urlParse, current) => {
     `)
 
     const stylePrompt = dedent(`
-    short Markdown document with relevant sections, sub-sections and citations with bulleted lists and sub-lists.
+    short Markdown document with relevant sections, sub-sections with bulleted lists and sub-lists.
     Be very short and succint for each bullet items. Discard useless disclaimers and boilerplate cruft from the article.
     `)
     
@@ -44,8 +41,9 @@ const prompt = async (urlParse, current) => {
 
         Also, ${urlPrompt}
 
-        Please incorporate the information from the above document into my original Markdown notes.
-        Keep the the original writing style of ${stylePrompt}. Feel free to create any new sections or sub-sections if needed.
+        Please incorporate information from the above site into my original Markdown notes (remove or combine duplicate information as needed).
+        Keep the the original writing style of ${stylePrompt}. Feel free to create any new thematics sections or add a new sub-section if needed.
+        Remove any empty section or sub-section.
         `)
     } else {
         return dedent(`
@@ -63,12 +61,18 @@ class Gemini {
     static ask = (prompt) => Gemini.llm.generateContent(prompt).then(result => result.response)
 }
 
-const result = await urlToText(urls[0])
-    .then(urlParse => prompt(urlParse))
-    .then(prompt => Gemini.ask(prompt))
+let doc = null
+for (const url of urls) {
+    console.log(`Reading ${url} ...`)
+    doc = await urlToText(url)
+        .then(urlParse => makePrompt(urlParse, doc))
+        .then(prompt => Gemini.ask(prompt))
+        .then(response => response.text())
+    console.log(doc)
+    console.log('XXXXXXXXXXXXXXXXXXXXXXXXX')
+}
 
-console.log(result.text())
-
+console.log(doc)
 // TODO: 
 // 1. streaming
 // 2. citations https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/gemini#response_body
