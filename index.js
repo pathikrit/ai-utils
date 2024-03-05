@@ -17,47 +17,19 @@ const urls = [
 ]
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
-const urlToText = (url) => extract(url).then(res => Object.assign(res, {text: convert(res.content)}))
+const parseUrl = (url) => extract(url).then(res => Object.assign(res, {text: convert(res.content), originalUrl: url}))
 
-const makePrompt = async (urlParse, current) => {
-    const urlPrompt = dedent(`
-        I have extracted the following information from this site:
-        url: ${urlParse.url},
-        title: ${urlParse.title},
-        description ${urlParse.description}
-        content: ${urlParse.text}
-    `)
+const makePrompt = (urlParse) => dedent(`
+    I have extracted the following information from this site:
+    url: ${urlParse.url},
+    title: ${urlParse.title},
+    description ${urlParse.description}
+    content: ${urlParse.text}
 
-    const stylePrompt = dedent(`
-    short Markdown document with relevant sections, sub-sections with bulleted lists and sub-lists.
-    Be very short and succint for each bullet items. Discard useless disclaimers and boilerplate cruft from the article.
-    `)
-    
-    if (current) {
-        return dedent(`
-        I have the following Markdown document of my notes of topics I am researching:
+    Please summarize above content into a short Markdown document with relevant sections, sub-sections with bulleted lists and sub-lists.
+    Be very short and succint
+`)
 
-        -----------------
-
-        ${current}
-
-        -----------------
-
-
-        Also, ${urlPrompt}
-
-        Please incorporate information from the above site into my original Markdown notes.
-        Keep the the original writing style of ${stylePrompt}. Feel free to create any new thematics sections or add a new sub-section if needed.
-        Removing any empty sections or sub-sections
-        `)
-    } else {
-        return dedent(`
-        ${urlPrompt}
-
-        Please summarize above content into a ${stylePrompt}.
-        `)
-    }
-}
 
 class Gemini {
     static API_KEY = 'AIzaSyBx0jD3n1_mhi1oKJCgn_JjbNhLjaDKhT0'
@@ -75,27 +47,19 @@ class Gemini {
     static ask = (prompt) => Gemini.llm.generateContent(prompt).then(result => result.response)
 }
 
-let doc = null
-const failures = []
-for (const url of urls) {
-    console.log(`Reading ${url} ...`)
-    doc = await urlToText(url)
-        .then(urlParse => makePrompt(urlParse, doc))
-        .then(prompt => Gemini.ask(prompt))
-        .then(response =>  { 
-            if (response.promptFeedback?.blockReason) {
-                failures.push({url: url, feedback: response.promptFeedback})
-                return doc
-            }
-            return response.text()
-        })
-    console.log(doc)
-    console.log('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+const saveFile = (md) => {
+    console.log(md)
 }
 
-console.log(JSON.stringify(failures))
-console.log(doc)
+for (const url of urls) {
+    console.log(`Reading ${url} ...`)
+    const parsed = await parseUrl(url)
+    Gemini.ask(makePrompt(parsed))
+        .then(response => response.promptFeedback?.blockReason ? `## Failed to read: \`${JSON.stringify(response.promptFeedback)}\`` : response.text())
+        .then(doc => `# [${parsed.title ?? parsed.description ?? parsed.url}](${parsed.originalUrl})\n\n${doc}`)
+}
+
+
 // TODO: 
 // 1. streaming
-// 2. citations https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/gemini#response_body
 // 3. stream logs
