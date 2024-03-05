@@ -1,7 +1,7 @@
 import { extract } from '@extractus/article-extractor'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { convert } from 'html-to-text'
-
+import dedent from 'dedent'
 
 const urls = [
   'https://www.whattoexpect.com/toddler/behavior/potty-training-problem-refusing-to-poop.aspx?xid=nl_parenting_20240211_34313723&utm_source=nl&utm_medium=email&utm_campaign=parenting&rbe=&utm_content=edit_20240211&document_id=281628&zdee=gAAAAABlfylsTCGMh4ZFNKAb15_gU-zgnnUKPVd5dQOEpJPQMtuKiZcPGYQqOhFQMD8Rquhq_2tHK7pPVSaQwlGkTumPBWJMk4FKjGm89Oz7yBJAj6EDdLI%3D',
@@ -22,26 +22,22 @@ const urlToText = (url) => {
     return extract(url).then(res => Object.assign(res, {text: convert(res.content)}))
 }
 
-const prompt = async (url, current) => {
-    const result = await urlToText(url)
-
-    // TODO: dedentjs
-
-    const urlPrompt = `
+const prompt = async (urlParse, current) => {
+    const urlPrompt = dedent(`
         I have extracted the following information from this site:
-        url: ${result.url},
-        title: ${result.title},
-        description ${result.description}
-        content: ${result.text}
-    `
+        url: ${urlParse.url},
+        title: ${urlParse.title},
+        description ${urlParse.description}
+        content: ${urlParse.text}
+    `)
 
-    const stylePrompt = `
+    const stylePrompt = dedent(`
     short Markdown document with relevant sections, sub-sections and citations with bulleted lists and sub-lists.
     Be very short and succint for each bullet items. Discard useless disclaimers and boilerplate cruft from the article.
-    `
+    `)
     
     if (current) {
-        return `
+        return dedent(`
         I have the following Markdown document of my notes:
 
         ${current}
@@ -50,12 +46,13 @@ const prompt = async (url, current) => {
 
         Please incorporate the information from the above document into my original Markdown notes.
         Keep the the original writing style of ${stylePrompt}. Feel free to create any new sections or sub-sections if needed.
-        `
+        `)
     } else {
-        return `
+        return dedent(`
         ${urlPrompt}
+
         Please summarize above content into a ${stylePrompt}.
-        `
+        `)
     }
 }
 
@@ -63,14 +60,14 @@ class Gemini {
     static API_KEY = 'AIzaSyBx0jD3n1_mhi1oKJCgn_JjbNhLjaDKhT0'
     static MODEL = 'gemini-pro'
     static llm = new GoogleGenerativeAI(Gemini.API_KEY).getGenerativeModel({model: Gemini.MODEL})
-    // const result = await llm.generateContent(prompt);
-// const response = await result.response;
-// console.log(response)
+    static ask = (prompt) => Gemini.llm.generateContent(prompt).then(result => result.response)
 }
 
-const p = await prompt(urls[0])
-console.log(p)
+const result = await urlToText(urls[0])
+    .then(urlParse => prompt(urlParse))
+    .then(prompt => Gemini.ask(prompt))
 
+console.log(result.text())
 
 // TODO: 
 // 1. streaming
