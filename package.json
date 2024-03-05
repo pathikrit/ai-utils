@@ -1,0 +1,19 @@
+{
+  "name": "multi-link-gpt",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.js",
+  "author": "pathikrit",
+  "license": "MIT",
+  "engines": {
+    "npm": ">=8",
+    "yarn": ">=1",
+    "node": ">=18 <20"
+  },
+  "engineStrict": true,
+  "dependencies": {
+    "@extractus/article-extractor": "^8.0.6",
+    "@google/generative-ai": "^0.2.1",
+    "html-to-text": "^9.0.5"
+  }
+}
