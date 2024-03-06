@@ -3,15 +3,17 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { convert } from 'html-to-text'
 import showdown from 'showdown'
 import dedent from 'dedent'
-import fs from 'node:fs/promises'
+import dotenv from 'dotenv'
 import express from 'express'
+
+dotenv.config()
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0
 
 const config = {
-    port: 3000,
+    port: process.env.PORT,
     gemini: {
-        apiKey: 'AIzaSyBx0jD3n1_mhi1oKJCgn_JjbNhLjaDKhT0',
+        apiKey: process.env.GEMINI_API_KEY,
         model: {
             model: 'gemini-pro',
             safetySettings: [
@@ -66,7 +68,4 @@ express()
     .listen(config.port, () => console.log(`Started server on port ${config.port} ...`))
 
 
-// TODO
-// 1. status codes
-// 2. blocks
-// 3. .env
+// TODO: status codes + blocks
