@@ -1,14 +1,13 @@
 import { extract } from '@extractus/article-extractor'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { convert } from 'html-to-text'
+import { StatusCodes } from 'http-status-codes'
 import showdown from 'showdown'
 import dedent from 'dedent'
 import dotenv from 'dotenv'
 import express from 'express'
 
 dotenv.config()
-
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0
 
 const config = {
     port: process.env.PORT,
@@ -41,9 +40,10 @@ const summarize = (parsed) => {
         content: ${parsed.text}
 
         Please summarize above content into a short Markdown document with relevant sections, sub-sections with bulleted and numbered lists and sub-lists.
-        Be very short and succint
-        Ignore disclaimers, self-propotions, acknowledgements etc.
-        Feel free to include citations or links to products as inline hyperlinks in Markdown
+        The more structured the document is, the better. But, be sure to be short and succint for each bulleted item.
+        Feel free to include citations or links to products and resources as inline hyperlinks in Markdown.
+        Also, feel free to tabulate in markdown if needed
+        Ignore disclaimers, self-promotions, acknowledgements etc.
     `)
     return llm.generateContent(prompt)
         .then(result => result.response)
@@ -62,10 +62,7 @@ express()
             .then(md => res.send(md2html.makeHtml(md)))
             .catch(err => {
                 console.error(err)
-                res.status(500).send(err)
+                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send(err)
             })
     })
     .listen(config.port, () => console.log(`Started server on port ${config.port} ...`))
-
-
-// TODO: status codes + blocks
