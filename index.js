@@ -1,7 +1,9 @@
 import { extract } from '@extractus/article-extractor'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { convert } from 'html-to-text'
+import showdown from 'showdown'
 import dedent from 'dedent'
+import fs from 'node:fs/promises'
 
 const urls = [
   'https://www.whattoexpect.com/toddler/behavior/potty-training-problem-refusing-to-poop.aspx?xid=nl_parenting_20240211_34313723&utm_source=nl&utm_medium=email&utm_campaign=parenting&rbe=&utm_content=edit_20240211&document_id=281628&zdee=gAAAAABlfylsTCGMh4ZFNKAb15_gU-zgnnUKPVd5dQOEpJPQMtuKiZcPGYQqOhFQMD8Rquhq_2tHK7pPVSaQwlGkTumPBWJMk4FKjGm89Oz7yBJAj6EDdLI%3D',
@@ -15,9 +17,9 @@ const urls = [
   'https://www.whattoexpect.com/toddler/behavior/undressing.aspx?xid=nl_parenting_20240205_34243271&utm_source=nl&utm_medium=email&utm_campaign=parenting&rbe=&utm_content=edit_20240205&document_id=284458&zdee=gAAAAABlfylsTCGMh4ZFNKAb15_gU-zgnnUKPVd5dQOEpJPQMtuKiZcPGYQqOhFQMD8Rquhq_2tHK7pPVSaQwlGkTumPBWJMk4FKjGm89Oz7yBJAj6EDdLI%3D',
   'https://www.whattoexpect.com/nursery-decorating/childproofing-basics.aspx?xid=nl_parenting_20231218_33735461&utm_source=nl&utm_medium=email&utm_campaign=parenting&rbe=&utm_content=edit_20231218&document_id=281608&zdee=gAAAAABlfylsTCGMh4ZFNKAb15_gU-zgnnUKPVd5dQOEpJPQMtuKiZcPGYQqOhFQMD8Rquhq_2tHK7pPVSaQwlGkTumPBWJMk4FKjGm89Oz7yBJAj6EDdLI%3D',
 ]
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0
 
-const parseUrl = (url) => extract(url).then(res => Object.assign(res, {text: convert(res.content), originalUrl: url}))
+const parseUrl = (url) => extract(url).then(res => Object.assign(res, {text: convert(res.content)}))
 
 const makePrompt = (urlParse) => dedent(`
     I have extracted the following information from this site:
@@ -26,10 +28,10 @@ const makePrompt = (urlParse) => dedent(`
     description ${urlParse.description}
     content: ${urlParse.text}
 
-    Please summarize above content into a short Markdown document with relevant sections, sub-sections with bulleted lists and sub-lists.
+    Please summarize above content into a short Markdown document with relevant sections, sub-sections with bulleted and numbered lists and sub-lists.
     Be very short and succint
+    Ignore disclaimers, self-propotions, acknowledgements etc.
 `)
-
 
 class Gemini {
     static API_KEY = 'AIzaSyBx0jD3n1_mhi1oKJCgn_JjbNhLjaDKhT0'
@@ -42,24 +44,21 @@ class Gemini {
                 {category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE},
                 {category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE}
             ]
-
         })
     static ask = (prompt) => Gemini.llm.generateContent(prompt).then(result => result.response)
 }
 
-const saveFile = (md) => {
-    console.log(md)
-}
+const md2html = new showdown.Converter({tables: true, openLinksInNewWindow: true, completeHTMLDocument: true, metadata: true, moreStyling: true})
 
-for (const url of urls) {
+for (const [i, url] of urls.entries()) {
     console.log(`Reading ${url} ...`)
+    
     const parsed = await parseUrl(url)
-    Gemini.ask(makePrompt(parsed))
+    const output = `output/${parsed.title ?? i}.html`.toLowerCase().replace(/ /g,"_")
+    await Gemini.ask(makePrompt(parsed))
         .then(response => response.promptFeedback?.blockReason ? `## Failed to read: \`${JSON.stringify(response.promptFeedback)}\`` : response.text())
-        .then(doc => `# [${parsed.title ?? parsed.description ?? parsed.url}](${parsed.originalUrl})\n\n${doc}`)
+        .then(doc => `# [${parsed.title ?? parsed.description ?? parsed.url}](${url})\n\n${doc}`)
+        .then(md => md2html.makeHtml(md))
+        .then(html => fs.writeFile(output, html))
+    console.log(`Saved ${output}`)
 }
-
-
-// TODO: 
-// 1. streaming
-// 3. stream logs
