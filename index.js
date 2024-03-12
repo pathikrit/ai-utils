@@ -21,6 +21,11 @@ const config = {
                 {category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE},
                 {category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE}
             ]
+        },
+        browser: {
+            headers: {
+                'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.79 Safari/537.36'
+            }
         }
     }
 }
@@ -29,7 +34,7 @@ const md2html = new showdown.Converter({tables: true, openLinksInNewWindow: true
 
 const llm = new GoogleGenerativeAI(config.gemini.apiKey).getGenerativeModel(config.gemini.model)
 
-const parseUrl = (url) => extract(url).then(res => Object.assign(res, {text: convert(res.content), originalUrl: url}))
+const parseUrl = (url) => extract(url, {}, config.browser).then(res => Object.assign(res, {text: convert(res.content), originalUrl: url}))
 
 const summarize = (parsed) => {
     const prompt = dedent(`
@@ -39,10 +44,11 @@ const summarize = (parsed) => {
         description ${parsed.description}
         content: ${parsed.text}
 
-        Please summarize above content into a short Markdown document with relevant sections, sub-sections with bulleted and numbered lists and sub-lists.
-        The more structured the document is, the better. But, be sure to be short and succint for each bulleted item.
+        Please summarize above content into a short Markdown note with relevant sections, sub-sections - each with bulleted and numbered lists and sub-lists.
+        The more structured the document is, the better.
+        But, be sure to be very short and succint for each bulleted item.
         Feel free to include citations or links to products and resources as inline hyperlinks in Markdown.
-        Also, feel free to tabulate in markdown if needed
+        Also, feel free to tabulate in markdown if needed.
         Ignore disclaimers, self-promotions, acknowledgements etc.
     `)
     return llm.generateContent(prompt)
@@ -62,7 +68,7 @@ express()
             .then(md => res.send(md2html.makeHtml(md)))
             .catch(err => {
                 console.error(err)
-                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send(err)
+                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send(err.message)
             })
     })
     .listen(config.port, () => console.log(`Started server on port ${config.port} ...`))
