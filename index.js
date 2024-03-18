@@ -1,4 +1,4 @@
-import { extract } from '@extractus/article-extractor'
+import { extract, extractFromHtml } from '@extractus/article-extractor'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { convert } from 'html-to-text'
 import { StatusCodes } from 'http-status-codes'
@@ -34,8 +34,6 @@ const md2html = new showdown.Converter({tables: true, openLinksInNewWindow: true
 
 const llm = new GoogleGenerativeAI(config.gemini.apiKey).getGenerativeModel(config.gemini.model)
 
-const parseUrl = (url) => extract(url, {}, config.browser).then(res => Object.assign(res, {text: convert(res.content), originalUrl: url}))
-
 const summarize = (parsed) => {
     const prompt = dedent(`
         I have extracted the following information from this site:
@@ -57,18 +55,23 @@ const summarize = (parsed) => {
         .then(doc => `# [${parsed.title ?? parsed.description ?? parsed.url}](${parsed.originalUrl})\n\n${doc}`)
 }
 
+const reqHandler = (req, res) => {
+    const url = req.query.url
+    if (!url) return res.redirect('/')
+    console.log(`Summarizing ${req.method} ${url} ...`)
+    const parsed = req.body ? extractFromHtml(req.body, url) : extract(url, {}, config.browser)
+    return parsed
+        .then(res => Object.assign(res, {text: convert(res.content), originalUrl: url}))
+        .then(summarize)
+        .then(md => res.send(md2html.makeHtml(md)))
+        .catch(err => {
+            console.error(err)
+            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send(err.message)
+        })
+}
+
 express()
     .get('/', (req, res) => res.send('URL Summarizer: Try /summarize?url=$url'))
-    .get('/summarize', (req, res) => {
-        const url = req.query.url
-        if (!url) return res.redirect('/')
-        console.log(`Summarizing ${url} ...`)
-        return parseUrl(url)
-            .then(summarize)
-            .then(md => res.send(md2html.makeHtml(md)))
-            .catch(err => {
-                console.error(err)
-                return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send(err.message)
-            })
-    })
+    .get('/summarize', reqHandler)
+    .post('/summarize', reqHandler)
     .listen(config.port, () => console.log(`Started server on port ${config.port} ...`))
