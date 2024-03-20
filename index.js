@@ -22,30 +22,6 @@ const config = {
                 {category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE},
                 {category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE}
             ],
-            tools: [
-                {
-                    functionDeclarations: [
-                        {
-                            name: "render_summary",
-                            description: "Display the summary of the content in markdown format",
-                            parameters: {
-                                type: FunctionDeclarationSchemaType.OBJECT,
-                                properties: {
-                                    title: {
-                                        type: FunctionDeclarationSchemaType.STRING,
-                                        description: "A short title for this content (max 3 or 4 words)",
-                                    },
-                                    summary: {
-                                        type: FunctionDeclarationSchemaType.STRING,
-                                        description: "Summary of the content in markdown format",
-                                    },
-                                },
-                                required: ["title", "summary"],
-                            }
-                        }
-                    ]
-                }
-            ]
         }
     },
     browser: {
@@ -56,10 +32,27 @@ const config = {
 }
 
 const md2html = new showdown.Converter({tables: true, openLinksInNewWindow: true, completeHTMLDocument: true, metadata: true, moreStyling: true})
-
-const llm = new GoogleGenerativeAI(config.gemini.apiKey).getGenerativeModel(config.gemini.model, {apiVersion: config.gemini.apiVersion})
+const genAi = new GoogleGenerativeAI(config.gemini.apiKey)
 
 const summarize = (parsed) => {
+    const fn = {
+        name: "render_summary",
+        description: "Display the summary of the content in markdown format",
+        parameters: {
+            type: FunctionDeclarationSchemaType.OBJECT,
+            properties: {
+                title: {
+                    type: FunctionDeclarationSchemaType.STRING,
+                    description: "A short title for this content (max 3 or 4 words)",
+                },
+                summary: {
+                    type: FunctionDeclarationSchemaType.STRING,
+                    description: "Summary of the content in markdown format",
+                },
+            },
+            required: ["title", "summary"],
+        }
+    }
     const prompt = dedent(`
         I have extracted the following information from this site:
         url: ${parsed.url},
@@ -74,8 +67,10 @@ const summarize = (parsed) => {
         Also, feel free to tabulate in markdown if needed.
         Ignore disclaimers, self-promotions, acknowledgements etc.
 
-        Please use the function call "render_summary" to display the summary of the content in markdown format.`
+        Please use the function call "${fn.name}" to display the summary of the content in markdown format.`
     )
+    const model = config.gemini.model.model
+    const llm = genAi.getGenerativeModel({model, tools: [{functionDeclarations: [fn]}]}, {apiVersion: config.gemini.apiVersion})
     return llm.generateContent(prompt)
         .then(result => result.response)
         .then(response => response.promptFeedback?.blockReason ? `## BLOCKED: \`${JSON.stringify(response.promptFeedback)}\`` : response.candidates[0]?.content?.parts[0]?.functionCall?.args)
