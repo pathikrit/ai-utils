@@ -73,8 +73,7 @@ const summarize = (parsed) => {
     const llm = genAi.getGenerativeModel({model, tools: [{functionDeclarations: [fn]}]}, {apiVersion: config.gemini.apiVersion})
     return llm.generateContent(prompt)
         .then(result => result.response)
-        .then(response => response.promptFeedback?.blockReason ? `## BLOCKED: \`${JSON.stringify(response.promptFeedback)}\`` : response.candidates[0]?.content?.parts[0]?.functionCall?.args)
-        .then(({title, summary}) => `# [${title ?? parsed.title ?? parsed.description ?? parsed.url}](${parsed.originalUrl})\n\n${summary.replace(/\\n/g, '\n').replace(/\\t/g, '\t')}`)
+        .then(response => response.promptFeedback?.blockReason ? Promise.reject(response.promptFeedback) : response.candidates[0]?.content?.parts[0]?.functionCall?.args)
 }
 
 const reqHandler = (req, res) => {
@@ -85,6 +84,7 @@ const reqHandler = (req, res) => {
     return parsed
         .then(res => Object.assign(res, {text: convert(res.content), originalUrl: url}))
         .then(summarize)
+        .then(({title, summary}) => `# [${title ?? parsed.title ?? parsed.description ?? parsed.url}](${parsed.originalUrl})\n\n${summary.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"')}`)
         .then(md => res.send(md2html.makeHtml(md)))
         .catch(err => {
             console.error(err)
