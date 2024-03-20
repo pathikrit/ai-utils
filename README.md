@@ -3,8 +3,12 @@ Trivial webapp to summarize webpages
 
 ## Installation
 ```
+git clone git@github.com:pathikrit/webpage-summarizer.git
+cd webpage-summarizer/
+
 echo "PORT=3000
 GEMINI_API_KEY=???" >> .env
+
 npm install
 ```
 
