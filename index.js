@@ -34,7 +34,15 @@ const md2html = new showdown.Converter({tables: true, openLinksInNewWindow: true
 const llm = new GoogleGenerativeAI(config.gemini.apiKey).getGenerativeModel(config.gemini.model)
 
 const askAi = (prompt) => llm.generateContent(dedent(prompt))
-    .then(result => JSON.parse(result.response.text().replace('```json\n', '').replace('```', '')))
+    .then(result => {
+        const json = result.response.text()
+        try {
+            return JSON.parse(json.replace('```json\n', '').replace('```', ''))
+        } catch(err) {
+            console.error(`Could not JSON parse ${json}`, err)
+            return json
+        }
+    })
 
 const summarize = (req, res) => {
     const url = req.query.url
@@ -42,7 +50,7 @@ const summarize = (req, res) => {
     console.log(`Summarizing ${req.method} ${url} ...`)
     const parsed = req.body ? extractFromHtml(req.body, url) : extract(url, {}, config.browser)
     return parsed
-        .then(res => Object.assign(res, {text: convert(res.content), originalUrl: url}))
+        .then(res => Object.assign(res, {text: convert(res.content)}))
         .then(parsed => askAi(`
             I have extracted the following information from this site:
             url: ${parsed.url},
@@ -63,7 +71,7 @@ const summarize = (req, res) => {
             Also, feel free to tabulate in markdown if needed.
             Ignore disclaimers, self-promotions, acknowledgements etc.
         `))
-        .then(({title, summary}) => `# [${title ?? parsed.title ?? parsed.description ?? parsed.url}](${parsed.originalUrl})\n\n${summary.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"')}`)
+        .then(({title, summary}) => `# [${title ?? parsed.title ?? parsed.description ?? parsed.url}](${url})\n\n${summary.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"')}`)
         .then(md => res.send(md2html.makeHtml(md)))
 }
 
@@ -73,7 +81,7 @@ const calendarize = (req, res) => {
     console.log(`Calendarizing ${req.method} ${url} ...`)
     const parsed = req.body ? extractFromHtml(req.body, url) : extract(url, {}, config.browser)
     return parsed
-        .then(res => Object.assign(res, {text: convert(res.content), originalUrl: url}))
+        .then(res => Object.assign(res, {text: convert(res.content)}))
         .then(parsed => askAi(`
             I have extracted the following information from this site:
             url: ${parsed.url},
@@ -93,7 +101,7 @@ const calendarize = (req, res) => {
         `))
         .then(arg => {
             const dateFormat = (d) => d.replaceAll('-', '').replaceAll(':', '').replaceAll('Z', '')
-            arg.details = (arg.details ?? '') + `\n\n${parsed.url}`
+            arg.details = (arg.details ?? '') + `\n\n${url}`
             const gcal = encodeURI(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${arg.title}&dates=${dateFormat(arg.start)}/${dateFormat(arg.end)}&location=${arg.location ?? ''}&details=${arg.details ?? ''}`)
             console.log(arg, gcal)
             return res.redirect(gcal)
