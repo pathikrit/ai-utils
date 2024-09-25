@@ -1,10 +1,10 @@
-# Webpage Summarizer
-Trivial webapp to summarize webpages
+# AI Utils
+Random collection of AI utls API I use
 
 ## Installation
 ```
-git clone git@github.com:pathikrit/webpage-summarizer.git
-cd webpage-summarizer/
+git clone git@github.com:pathikrit/ai-utils.git
+cd ai-utils/
 
 echo "PORT=3000
 GEMINI_API_KEY=???" >> .env
