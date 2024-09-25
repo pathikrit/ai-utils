@@ -1,5 +1,5 @@
 import { extract, extractFromHtml } from '@extractus/article-extractor'
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, FunctionDeclarationSchemaType } from '@google/generative-ai'
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { convert } from 'html-to-text'
 import { StatusCodes } from 'http-status-codes'
 import showdown from 'showdown'
@@ -13,9 +13,8 @@ const config = {
     port: process.env.PORT,
     gemini: {
         apiKey: process.env.GEMINI_API_KEY,
-        apiVersion: "v1beta",
         model: {
-            model: 'gemini-pro',
+            model: 'gemini-1.5-flash',
             safetySettings: [
                 {category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE},
                 {category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE},
@@ -34,25 +33,11 @@ const config = {
 const md2html = new showdown.Converter({tables: true, openLinksInNewWindow: true, completeHTMLDocument: true, metadata: true, moreStyling: true})
 const genAi = new GoogleGenerativeAI(config.gemini.apiKey)
 
+const askAi = (prompt) => genAi.getGenerativeModel({model: config.gemini.model.model})
+    .generateContent(prompt)
+    .then(result => JSON.parse(result.response.text().replace('```json\n', '').replace('```', '')))
+
 const summarize = (parsed) => {
-    const fn = {
-        name: "render_summary",
-        description: "Display the summary of the content in markdown format",
-        parameters: {
-            type: FunctionDeclarationSchemaType.OBJECT,
-            properties: {
-                title: {
-                    type: FunctionDeclarationSchemaType.STRING,
-                    description: "A short title for this content (max 3 or 4 words)",
-                },
-                summary: {
-                    type: FunctionDeclarationSchemaType.STRING,
-                    description: "Summary of the content in markdown format",
-                },
-            },
-            required: ["title", "summary"],
-        }
-    }
     const prompt = dedent(`
         I have extracted the following information from this site:
         url: ${parsed.url},
@@ -60,21 +45,20 @@ const summarize = (parsed) => {
         description ${parsed.description}
         content: ${parsed.text}
 
-        Please summarize above content into a short Markdown note with relevant sections, sub-sections - each with bulleted and numbered lists and sub-lists.
+        Generate a short title and summarize the above content and respond using the following JSON schema:
+        Return: {'title': string, 'summary': string}
+
+        where:
+        title: A short title for this content (max 3 or 4 words)
+
+        summary: a short Markdown note with relevant sections, sub-sections - each with bulleted and numbered lists and sub-lists.
         The more structured the document is, the better.
         But, be sure to be very short and succint for each bulleted item.
         Feel free to include citations or links to products and resources as inline hyperlinks in Markdown.
         Also, feel free to tabulate in markdown if needed.
         Ignore disclaimers, self-promotions, acknowledgements etc.
-
-        Please use the function call "${fn.name}" to display the summary of the content in markdown format.
-        The title argument should be very short (3 or 4 words)
     `)
-    const model = config.gemini.model.model
-    const llm = genAi.getGenerativeModel({model, tools: [{functionDeclarations: [fn]}]}, {apiVersion: config.gemini.apiVersion})
-    return llm.generateContent(prompt)
-        .then(result => result.response)
-        .then(response => response.promptFeedback?.blockReason ? Promise.reject(response.promptFeedback) : response.candidates[0]?.content?.parts[0]?.functionCall?.args)
+    return askAi(prompt)
 }
 
 const reqHandler = (req, res) => {
