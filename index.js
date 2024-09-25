@@ -67,9 +67,44 @@ const summarize = (req, res) => {
         .then(md => res.send(md2html.makeHtml(md)))
 }
 
+const calendarize = (req, res) => {
+    const url = req.query.url
+    if (!url) return res.redirect('/')
+    console.log(`Calendarizing ${req.method} ${url} ...`)
+    const parsed = req.body ? extractFromHtml(req.body, url) : extract(url, {}, config.browser)
+    return parsed
+        .then(res => Object.assign(res, {text: convert(res.content), originalUrl: url}))
+        .then(parsed => askAi(`
+            I have extracted the following information from this site:
+            url: ${parsed.url},
+            title: ${parsed.title},
+            description ${parsed.description}
+            content: ${parsed.text}
+
+            Generate a calendar invite with given title, start date and time, end date and time, location and description and respond using the following JSON schema:
+            Return: {'title': string, 'start': string, 'end': string, 'location': string, 'details': string}
+
+            where:
+            title: Event title
+            start: Event start time in ISO format
+            end: Event end time in ISO format
+            location: Event location
+            details: Event description (short)
+        `))
+        .then(arg => {
+            const dateFormat = (d) => d.replaceAll('-', '').replaceAll(':', '').replaceAll('Z', '')
+            arg.details = (arg.details ?? '') + `\n\n${parsed.url}`
+            const gcal = encodeURI(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${arg.title}&dates=${dateFormat(arg.start)}/${dateFormat(arg.end)}&location=${arg.location ?? ''}&details=${arg.details ?? ''}`)
+            console.log(arg, gcal)
+            return res.redirect(gcal)
+        })
+}
+
 express()
-    .get('/', (req, res) => res.send('URL Summarizer: Try /summarize?url=$url'))
+    .get('/', (req, res) => res.send('Try /summarize?url=$url or /calendarize?url=$url'))
     .get('/summarize', summarize)
     .post('/summarize', summarize)
+    .get('/calendarize', calendarize)
+    .post('/calendarize', calendarize)
     .use((err, req, res, next) => res.status(StatusCodes.INTERNAL_SERVER_ERROR).send(err.message))
     .listen(config.port, () => console.log(`Started server on port ${config.port} ...`))
