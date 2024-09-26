@@ -102,9 +102,9 @@ const calendarize = (req, res) => {
         .then(arg => {
             const dateFormat = (d) => d.replaceAll('-', '').replaceAll(':', '').replaceAll('Z', '')
             arg.details = (arg.details ?? '') + `\n\n${url}`
-            const gcal = encodeURI(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${arg.title}&dates=${dateFormat(arg.start)}/${dateFormat(arg.end)}&location=${arg.location ?? ''}&details=${arg.details ?? ''}`)
-            console.log(arg, gcal)
-            return res.redirect(gcal)
+            arg.gcal = encodeURI(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${arg.title}&dates=${dateFormat(arg.start)}/${dateFormat(arg.end)}&location=${arg.location ?? ''}&details=${arg.details ?? ''}`)
+            console.log(arg)
+            return req.method == 'GET' ? res.redirect(arg.gcal) : res.send(arg)
         })
 }
 
