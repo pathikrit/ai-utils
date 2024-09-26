@@ -75,9 +75,8 @@ const summarize = (req, res) => {
         .then(md => res.send(md2html.makeHtml(md)))
 }
 
-const calendarize = (req, res) => {
+const calendarize = (req) => {
     const url = req.query.url
-    if (!url) return res.redirect('/')
     console.log(`Calendarizing ${req.method} ${url} ...`)
     const parsed = req.body ? extractFromHtml(req.body, url) : extract(url, {}, config.browser)
     return parsed
@@ -104,16 +103,25 @@ const calendarize = (req, res) => {
             arg.details = (arg.details ?? '') + `\n\n${url}`
             arg.gcal = encodeURI(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${arg.title}&dates=${dateFormat(arg.start)}/${dateFormat(arg.end)}&location=${arg.location ?? ''}&details=${arg.details ?? ''}`)
             console.log(arg)
-            return req.method == 'GET' ? res.redirect(arg.gcal) : res.send(arg)
+            return (res) => res.redirect(arg.gcal)
         })
+}
+
+const responseCache = new Map()
+const immediateReturn = (handler) => (req, res) => {
+    if (req.method === 'GET') return handler(req).then(fn => fn(res))
+    const requestId = Date.now().toString()
+    responseCache.set(requestId, handler(req))
+    return res.status(StatusCodes.ACCEPTED).send({id: requestId, redirect: `${req.protocol}://${req.get('host')}/result/${requestId}`})
 }
 
 express()
     .get('/', (req, res) => res.send('Try /summarize?url=$url or /calendarize?url=$url'))
-    .get('/summarize', summarize)
-    .post('/summarize', summarize)
-    .get('/calendarize', calendarize)
-    .post('/calendarize', calendarize)
+    .get('/result/:id', (req, res) => responseCache.has(req.params.id) ? responseCache.get(req.params.id).then(fn => fn(res)) : res.status(StatusCodes.NOT_FOUND).send(`Not Found requestId=${req.params.id}`))
+    .get('/summarize', immediateReturn(summarize))
+    .post('/summarize', immediateReturn(summarize))
+    .get('/calendarize', immediateReturn(calendarize))
+    .post('/calendarize', immediateReturn(calendarize))
     .use((err, req, res, next) => {
         console.error(err)
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).send('ERROR: ' + err?.message ?? 'Internal Server Error')
