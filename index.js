@@ -44,10 +44,8 @@ const askAi = (prompt) => llm.generateContent(dedent(prompt))
         }
     })
 
-const summarize = (req, res) => {
+const summarize = (req) => {
     const url = req.query.url
-    if (!url) return res.redirect('/')
-    console.log(`Summarizing ${req.method} ${url} ...`)
     const parsed = req.body ? extractFromHtml(req.body, url) : extract(url, {}, config.browser)
     return parsed
         .then(res => Object.assign(res, {text: convert(res.content)}))
@@ -72,12 +70,11 @@ const summarize = (req, res) => {
             Ignore disclaimers, self-promotions, acknowledgements etc.
         `))
         .then(({title, summary}) => `# [${title ?? parsed.title ?? parsed.description ?? parsed.url}](${url})\n\n${summary.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"')}`)
-        .then(md => res.send(md2html.makeHtml(md)))
+        .then(md => res => res.send(md2html.makeHtml(md)))
 }
 
 const calendarize = (req) => {
     const url = req.query.url
-    console.log(`Calendarizing ${req.method} ${url} ...`)
     const parsed = req.body ? extractFromHtml(req.body, url) : extract(url, {}, config.browser)
     return parsed
         .then(res => Object.assign(res, {text: convert(res.content)}))
@@ -103,16 +100,17 @@ const calendarize = (req) => {
             arg.details = (arg.details ?? '') + `\n\n${url}`
             arg.gcal = encodeURI(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${arg.title}&dates=${dateFormat(arg.start)}/${dateFormat(arg.end)}&location=${arg.location ?? ''}&details=${arg.details ?? ''}`)
             console.log(arg)
-            return (res) => res.redirect(arg.gcal)
+            return res => res.redirect(arg.gcal)
         })
 }
 
 const responseCache = new Map()
 const immediateReturn = (handler) => (req, res) => {
+    console.log(`${handler.name}: ${req.method} ${req.url} ...`)
     if (req.method === 'GET') return handler(req).then(fn => fn(res))
     const requestId = Date.now().toString()
     responseCache.set(requestId, handler(req))
-    return res.status(StatusCodes.ACCEPTED).send({id: requestId, redirect: `${req.protocol}://${req.get('host')}/result/${requestId}`})
+    return res.status(StatusCodes.ACCEPTED).send({id: requestId, resultUrl: `${req.protocol}://${req.get('host')}/result/${requestId}`})
 }
 
 express()
