@@ -56,7 +56,7 @@ const immediateReturn = (handler) => (req, res) => {
 }
 
 const parseHtml = (req) => (req.body ? extractFromHtml(req.body, req.query.url) : extract(req.query.url, {}, config.browser))
-    .then(res => Object.assign(res, {text: convert(res.content)}))
+    .then(res => Object.assign(res, {text: convert(res.content ?? req.body ?? '')}))
 
 const summarize = (req) => parseHtml(req)
     .then(parsed => askAi(`
