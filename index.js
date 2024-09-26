@@ -11,6 +11,7 @@ dotenv.config()
 
 const config = {
     port: process.env.PORT,
+    responseTtl: 60 * 60 * 1000,    // Store result cache for 1 hour
     gemini: {
         apiKey: process.env.GEMINI_API_KEY,
         model: {
@@ -97,7 +98,7 @@ const calendarize = (req) => {
         `))
         .then(arg => {
             const dateFormat = (d) => d.replaceAll('-', '').replaceAll(':', '').replaceAll('Z', '')
-            arg.details = (arg.details ?? '') + `\n\n${url}`
+            arg.details = [arg.details ?? parsed.description, url].join('\n\n')
             arg.gcal = encodeURI(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${arg.title}&dates=${dateFormat(arg.start)}/${dateFormat(arg.end)}&location=${arg.location ?? ''}&details=${arg.details ?? ''}`)
             console.log(arg)
             return res => res.redirect(arg.gcal)
@@ -108,8 +109,9 @@ const responseCache = new Map()
 const immediateReturn = (handler) => (req, res) => {
     console.log(`${handler.name}: ${req.method} ${req.url} ...`)
     if (req.method === 'GET') return handler(req).then(fn => fn(res))
-    const requestId = Date.now().toString()
+    const requestId = Date.now().toString() // TODO: use uuid
     responseCache.set(requestId, handler(req))
+    setTimeout(() => responseCache.delete(requestId), config.responseTtl)
     return res.status(StatusCodes.ACCEPTED).send({id: requestId, resultUrl: `${req.protocol}://${req.get('host')}/result/${requestId}`})
 }
 
