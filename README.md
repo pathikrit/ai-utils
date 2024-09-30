@@ -17,4 +17,11 @@ npm install
 node --watch index.js
 ```
 
+## APIs
+
+- `GET /summarize?url=`
+- `POST /summarize?url=` (with body = HTML of the page)
+- `GET /calendarize?url=`
+- `POST /calendarize?url=` (with body = HTML of the page)
+
 Usage Example: <http://localhost:3000/summarize?url=https://www.whattoexpect.com/toddler/behavior/potty-training-problem-refusing-to-poop.aspx>

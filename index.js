@@ -6,6 +6,7 @@ import showdown from 'showdown'
 import dedent from 'dedent'
 import dotenv from 'dotenv'
 import express from 'express'
+import * as fs from 'fs'
 
 dotenv.config()
 
@@ -108,8 +109,9 @@ const calendarize = (req) => parseHtml(req)
         return res => res.redirect(arg.gcal)
     })
 
+const readme = md2html.makeHtml(fs.readFileSync('README.md').toString())
 express()
-    .get('/', (req, res) => res.send('Try /summarize?url=$url or /calendarize?url=$url'))
+    .get('/', (req, res) => res.send(readme))
     .get('/result/:id', (req, res) => responseCache.has(req.params.id) ? responseCache.get(req.params.id).then(fn => fn(res)) : res.status(StatusCodes.NOT_FOUND).send(`Not Found requestId=${req.params.id}`))
     .get('/summarize', immediateReturn(summarize))
     .post('/summarize', immediateReturn(summarize))
