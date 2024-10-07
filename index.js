@@ -6,6 +6,7 @@ import showdown from 'showdown'
 import dedent from 'dedent'
 import dotenv from 'dotenv'
 import express from 'express'
+import bodyParser from 'body-parser'
 import * as fs from 'fs'
 
 dotenv.config()
@@ -56,8 +57,18 @@ const immediateReturn = (handler) => (req, res) => {
     return res.status(StatusCodes.ACCEPTED).send({id: requestId, resultUrl: `${req.protocol}://${req.get('host')}/result/${requestId}`})
 }
 
-const parseHtml = (req) => (req.body ? extractFromHtml(req.body, req.query.url) : extract(req.query.url, {}, config.browser))
-    .then(res => Object.assign(res, {text: convert(res.content ?? req.body ?? '')}))
+const parseHtml = async (req) => {
+    try {
+        console.log(`Parsing ${req.query.url} with body=${req.body?.substring(0, 10)} ...`)
+        const pml = req.body ? extractFromHtml(req.body, req.query.url) : extract(req.query.url, {}, config.browser)
+        const res = (await pml) ?? {}
+        res.text = convert(res?.content ?? req.body ?? '')
+        return res
+    } catch(err) {
+        console.error(err)
+        return Promise.reject(err)
+    }
+}
 
 const summarize = (req) => parseHtml(req)
     .then(parsed => askAi(`
@@ -110,13 +121,14 @@ const calendarize = (req) => parseHtml(req)
     })
 
 const readme = md2html.makeHtml(fs.readFileSync('README.md').toString())
+const parseHtmlBody = bodyParser.text({type: '*/*', limit: '50mb'})
 express()
     .get('/', (req, res) => res.send(readme))
     .get('/result/:id', (req, res) => responseCache.has(req.params.id) ? responseCache.get(req.params.id).then(fn => fn(res)) : res.status(StatusCodes.NOT_FOUND).send(`Not Found requestId=${req.params.id}`))
     .get('/summarize', immediateReturn(summarize))
-    .post('/summarize', immediateReturn(summarize))
+    .post('/summarize', parseHtmlBody, immediateReturn(summarize))
     .get('/calendarize', immediateReturn(calendarize))
-    .post('/calendarize', immediateReturn(calendarize))
+    .post('/calendarize', parseHtmlBody, immediateReturn(calendarize))
     .use((err, req, res, next) => {
         console.error(err)
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).send('ERROR: ' + err?.message ?? 'Internal Server Error')
