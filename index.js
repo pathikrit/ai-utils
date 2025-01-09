@@ -1,6 +1,5 @@
-import { extract, extractFromHtml } from '@extractus/article-extractor'
 import OpenAI from 'openai'
-import { convert } from 'html-to-text'
+import axios from 'axios'
 import { StatusCodes } from 'http-status-codes'
 import showdown from 'showdown'
 import dedent from 'dedent'
@@ -28,6 +27,7 @@ const config = {
 }
 
 const md2html = new showdown.Converter({tables: true, openLinksInNewWindow: true, completeHTMLDocument: true, metadata: true, moreStyling: true})
+const html2md = new showdown.Converter()
 const llm = new OpenAI()
 
 const askAi = (prompt) => llm.chat.completions.create({
@@ -53,17 +53,10 @@ const immediateReturn = (handler) => (req, res) => {
     return res.status(StatusCodes.ACCEPTED).send({id: requestId, resultUrl: `${req.protocol}://${req.get('host')}/result/${requestId}`})
 }
 
-const parseHtml = async (req) => {
-    try {
-        console.log(`Parsing ${req.query.url} with body=${req.body?.substring(0, 10)} ...`)
-        const pml = req.body ? extractFromHtml(req.body, req.query.url) : extract(req.query.url, {}, config.browser)
-        const res = (await pml) ?? {}
-        res.text = convert(res?.content ?? req.body ?? '')
-        return res
-    } catch(err) {
-        console.error(err)
-        return Promise.reject(err)
-    }
+const parseHtml = (req) => {
+    console.log(`Parsing ${req.query.url} with body=${req.body?.substring(0, 10)} ...`)
+    const body = req.body ? Promise.resolve(req.body) : axios.get(req.query.url, config.browser).then(res => res.data)
+    return body.then(html => html2md.makeMarkdown(html))
 }
 
 const summarize = (req) => parseHtml(req)
