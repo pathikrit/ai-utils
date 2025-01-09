@@ -7,7 +7,7 @@ git clone git@github.com:pathikrit/ai-utils.git
 cd ai-utils/
 
 echo "PORT=3000
-GEMINI_API_KEY=???" >> .env
+OPENAI_API_KEY=???" >> .env
 
 npm install
 ```
@@ -24,4 +24,4 @@ node --watch index.js
 - `GET /calendarize?url=`
 - `POST /calendarize?url=` (with body = HTML of the page)
 
-Usage Example: <http://localhost:3000/summarize?url=https://www.whattoexpect.com/toddler/behavior/potty-training-problem-refusing-to-poop.aspx>
+Usage Example: <http://localhost:3000/summarize?url=https://www.federalreserve.gov/newsevents/speech/bernanke20130301a.htm>

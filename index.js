@@ -1,5 +1,5 @@
 import { extract, extractFromHtml } from '@extractus/article-extractor'
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
+import OpenAI from 'openai'
 import { convert } from 'html-to-text'
 import { StatusCodes } from 'http-status-codes'
 import showdown from 'showdown'
@@ -14,16 +14,10 @@ dotenv.config()
 const config = {
     port: process.env.PORT,
     responseTtl: 60 * 60 * 1000,    // Store result cache for 1 hour
-    gemini: {
-        apiKey: process.env.GEMINI_API_KEY,
+    openai: {
+        apiKey: process.env.OPENAI_API_KEY,
         model: {
-            model: 'gemini-1.5-flash',
-            safetySettings: [
-                {category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE},
-                {category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE},
-                {category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE},
-                {category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE}
-            ],
+            version: 'gpt-4o',
         }
     },
     browser: {
@@ -34,10 +28,12 @@ const config = {
 }
 
 const md2html = new showdown.Converter({tables: true, openLinksInNewWindow: true, completeHTMLDocument: true, metadata: true, moreStyling: true})
-const llm = new GoogleGenerativeAI(config.gemini.apiKey).getGenerativeModel(config.gemini.model)
+const llm = new OpenAI()
 
-const askAi = (prompt) => llm.generateContent(dedent(prompt))
-    .then(result => {
+const askAi = (prompt) => llm.chat.completions.create({
+    model: config.openai.model.version,
+    messages: [{role: 'user', content: dedent(prompt)}],
+}).then(result => {
         const json = result.response.text()
         try {
             return JSON.parse(json.replace('```json\n', '').replace('```', ''))
