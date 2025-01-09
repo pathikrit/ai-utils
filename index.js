@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import axios from 'axios'
 import { StatusCodes } from 'http-status-codes'
 import showdown from 'showdown'
+import TurndownService from 'turndown'
 import dedent from 'dedent'
 import dotenv from 'dotenv'
 import express from 'express'
@@ -27,19 +28,19 @@ const config = {
 }
 
 const md2html = new showdown.Converter({tables: true, openLinksInNewWindow: true, completeHTMLDocument: true, metadata: true, moreStyling: true})
-const html2md = new showdown.Converter()
+const html2md = new TurndownService()
 const llm = new OpenAI()
 
 const askAi = (prompt) => llm.chat.completions.create({
     model: config.openai.model.version,
     messages: [{role: 'user', content: dedent(prompt)}],
 }).then(result => {
-        const json = result.response.text()
         try {
+            const json = result?.choices?.[0]?.message?.content
             return JSON.parse(json.replace('```json\n', '').replace('```', ''))
         } catch(err) {
-            console.error(`Could not JSON parse ${json}`, err)
-            return json
+            console.error(`Could not parse result ${result}`, err)
+            return result
         }
     })
 
@@ -56,16 +57,14 @@ const immediateReturn = (handler) => (req, res) => {
 const parseHtml = (req) => {
     console.log(`Parsing ${req.query.url} with body=${req.body?.substring(0, 10)} ...`)
     const body = req.body ? Promise.resolve(req.body) : axios.get(req.query.url, config.browser).then(res => res.data)
-    return body.then(html => html2md.makeMarkdown(html))
+    return body.then(html => html2md.turndown(html))
 }
 
 const summarize = (req) => parseHtml(req)
-    .then(parsed => askAi(`
+    .then(markdown => askAi(`
         I have extracted the following information from this site:
-        url: ${parsed.url},
-        title: ${parsed.title},
-        description ${parsed.description}
-        content: ${parsed.text}
+        url: ${req.query.url},
+        content: ${markdown}
 
         Generate a short title and summarize the above content and respond using the following JSON schema:
         Return: {'title': string, 'summary': string}
@@ -80,16 +79,14 @@ const summarize = (req) => parseHtml(req)
         Also, feel free to tabulate in markdown if needed.
         Ignore disclaimers, self-promotions, acknowledgements etc.
     `))
-    .then(({title, summary}) => `# [${title ?? parsed.title ?? parsed.description ?? 'Original Article'}](${req.query.url})\n\n${summary.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"')}`)
+    .then(({title, summary}) => `# [${title ?? 'Original Article'}](${req.query.url})\n\n${summary.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"')}`)
     .then(md => res => res.send(md2html.makeHtml(md)))
 
 const calendarize = (req) => parseHtml(req)
-    .then(parsed => askAi(`
+    .then(markdown => askAi(`
         I have extracted the following information from this site:
-        url: ${parsed.url},
-        title: ${parsed.title},
-        description ${parsed.description}
-        content: ${parsed.text}
+        url: ${req.query.url},
+        content: ${markdown}
 
         Generate a calendar invite with given title, start date and time, end date and time, location and description and respond using the following JSON schema:
         Return: {'title': string, 'start': string, 'end': string, 'location': string, 'details': string}
@@ -103,7 +100,7 @@ const calendarize = (req) => parseHtml(req)
     `))
     .then(arg => {
         const dateFormat = (d) => d.replaceAll('-', '').replaceAll(':', '').replaceAll('Z', '')
-        arg.details = [arg.details ?? parsed.description, req.query.url].join('\n\n')
+        arg.details = [arg.details, req.query.url].join('\n\n')
         arg.gcal = encodeURI(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${arg.title}&dates=${dateFormat(arg.start)}/${dateFormat(arg.end)}&location=${arg.location ?? ''}&details=${arg.details ?? ''}`)
         console.log(arg)
         return res => res.redirect(arg.gcal)
