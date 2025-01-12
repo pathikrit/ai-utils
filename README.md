@@ -24,4 +24,5 @@ node --watch index.js
 - `GET /calendarize?url=`
 - `POST /calendarize?url=` (with body = HTML of the page)
 
-Usage Example: <http://localhost:3000/summarize?url=https://www.federalreserve.gov/newsevents/speech/bernanke20130301a.htm>
+Summary Example: <http://localhost:3000/summarize?url=https://www.federalreserve.gov/newsevents/speech/bernanke20130301a.htm>
+Calendarize Example: <https://wbf.app.neoncrm.com/np/clients/wbf/event.jsp?event=6111>

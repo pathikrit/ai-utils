@@ -1,4 +1,6 @@
 import OpenAI from 'openai'
+import { zodResponseFormat } from 'openai/helpers/zod'
+import { z } from 'zod'
 import axios from 'axios'
 import { StatusCodes } from 'http-status-codes'
 import showdown from 'showdown'
@@ -31,18 +33,11 @@ const md2html = new showdown.Converter({tables: true, openLinksInNewWindow: true
 const html2md = new TurndownService()
 const llm = new OpenAI()
 
-const askAi = (prompt) => llm.chat.completions.create({
+const askAi = (prompt, name, schema) => llm.beta.chat.completions.parse({
     model: config.openai.model.version,
     messages: [{role: 'user', content: dedent(prompt)}],
-}).then(result => {
-        try {
-            const json = result?.choices?.[0]?.message?.content
-            return JSON.parse(json.replace('```json\n', '').replace('```', ''))
-        } catch(err) {
-            console.error(`Could not parse result ${result}`, err)
-            return result
-        }
-    })
+    response_format: zodResponseFormat(schema, name),
+}).then(result => result.choices[0].message.parsed)
 
 const responseCache = new Map()
 const immediateReturn = (handler) => (req, res) => {
@@ -78,7 +73,7 @@ const summarize = (req) => parseHtml(req)
         Feel free to include citations or links to products and resources as inline hyperlinks in Markdown.
         Also, feel free to tabulate in markdown if needed.
         Ignore disclaimers, self-promotions, acknowledgements etc.
-    `))
+    `,  'summary', z.object({title: z.string(), summary: z.string()})))
     .then(({title, summary}) => `# [${title ?? 'Original Article'}](${req.query.url})\n\n${summary.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"')}`)
     .then(md => res => res.send(md2html.makeHtml(md)))
 
@@ -97,7 +92,7 @@ const calendarize = (req) => parseHtml(req)
         end: Event end time in ISO format
         location: Event location
         details: Event description (short)
-    `))
+    `, 'event', z.object({title: z.string(), start: z.string(), end: z.string(), location: z.string().optional(), details: z.string().optional()})))
     .then(arg => {
         const dateFormat = (d) => d.replaceAll('-', '').replaceAll(':', '').replaceAll('Z', '')
         arg.details = [arg.details, req.query.url].join('\n\n')
