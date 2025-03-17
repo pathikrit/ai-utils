@@ -1,39 +1,30 @@
+from __future__ import annotations
+
 from datetime import datetime
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, Request
-from urllib.parse import urlencode
-from pydantic import BaseModel, HttpUrl
+from dotenv import load_dotenv
 
-app = FastAPI()
+from pydantic import BaseModel, HttpUrl, computed_field
+from pydantic_ai import Agent
+from markdownify import markdownify as md
 
-@app.get("/")
-async def main_route():
-    event = CalendarResponse(
-        title="Meeting",
-        start=datetime(2025, 3, 17, 10, 0),
-        end=datetime(2025, 3, 17, 11, 0),
-        location="New York",
-        details="Project discussion"
-    )
-    return {"message": event.gcal_url()}
-
-
-@app.post("/calendarize")
-async def read_body(req: Request):
-    return {"raw_body": req.body}
+load_dotenv()
 
 class CalendarResponse(BaseModel):
     title: str
     start: datetime
     end: datetime
-    location: str
-    details: str
+    location: str | None
+    details: str | None
 
+    @computed_field
+    @property
     def gcal_url(self) -> HttpUrl:
         def format_date(date: datetime) -> str:
             return date.strftime('%Y%m%dT%H%M%SZ')
 
-        gcal_base_url = "https://calendar.google.com/calendar"
         gcal_params = {
             "action": "TEMPLATE",
             "text": self.title,
@@ -41,4 +32,19 @@ class CalendarResponse(BaseModel):
             "location": self.location,
             "details": self.details
         }
-        return HttpUrl(f"{gcal_base_url}/render?{urlencode(gcal_params)}")
+        return HttpUrl(f"https://calendar.google.com/calendar/render?{urlencode(gcal_params)}")
+
+calendar_agent = Agent(
+    model="gpt-4o",
+    result_type=CalendarResponse,
+    system_prompt="From the user's input, extract a calendar invite"
+)
+
+app = FastAPI()
+
+@app.post("/calendarize")
+async def calendarize(url: HttpUrl, req: Request):
+    body = await req.body()
+    content = md(body)
+    result = await calendar_agent.run(f"I have extracted {content=} from {url=}")
+    return result.data

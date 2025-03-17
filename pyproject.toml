@@ -1,19 +1,18 @@
 [project]
 name = "ai-utils"
-version = "0.1.0"
-description = ""
-authors = [
-    {name = "pathikrit",email = "pathikritbhowmick@msn.com"}
-]
+version = "0.0.1"
+description = "Little AI utils I use"
+authors = [{name = "pathikrit",email = "pathikritbhowmick@msn.com"}]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10,<4.0"
 dependencies = [
     "fastapi[standard] (>=0.115.11,<0.116.0)",
-    "uvicorn[standard] (>=0.34.0,<0.35.0)"
+    "uvicorn[standard] (>=0.34.0,<0.35.0)",
+    "pydantic-ai (>=0.0.41,<0.0.42)",
+    "markitdown[all] (>=0.0.2,<0.0.3)",
+    "markdownify (>=1.1.0,<2.0.0)",
+    "python-dotenv (>=1.0.1,<2.0.0)",
 ]
-
-[tool.poetry]
-packages = [{include = "ai_utils", from = "src"}]
 
 
 [build-system]
