@@ -1,5 +1,5 @@
 # AI Utils
-Random collection of AI utls API I use
+Random collection of AI utils API I use
 
 ## Installation
 ```shell
@@ -9,12 +9,12 @@ cd ai-utils/
 echo "PORT=3000
 OPENAI_API_KEY=???" >> .env
 
-npm install
+poetry install --no-root
 ```
 
 ## Running
 ```shell
-node --watch index.js
+poetry run fastapi dev server.py
 ```
 
 ## APIs
