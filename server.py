@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from dotenv import load_dotenv
 
 from pydantic import BaseModel, HttpUrl, computed_field
@@ -42,9 +42,11 @@ calendar_agent = Agent(
 
 app = FastAPI()
 
-@app.post("/calendarize")
-async def calendarize(url: HttpUrl, req: Request):
+async def html_to_markdown_middleware(req: Request) -> str:
     body = await req.body()
-    content = md(body)
+    return md(body)
+
+@app.post("/calendarize")
+async def calendarize(url: HttpUrl, content: str =  Depends(html_to_markdown_middleware)):
     result = await calendar_agent.run(f"I have extracted {content=} from {url=}")
     return result.data
