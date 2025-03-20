@@ -9,7 +9,7 @@ import logging
 
 from dotenv import load_dotenv
 
-from fastapi import FastAPI, Request, Depends, HTTPException, status, BackgroundTasks
+from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse
 
 from expiringdict import ExpiringDict
@@ -20,8 +20,42 @@ from pydantic_ai import Agent
 from markdownify import markdownify as html_to_md
 from markdown import markdown as md_to_html
 
+##################################### Setup globals ########################################
+
 load_dotenv()
 log = logging.getLogger(__name__)
+
+app = FastAPI()
+tasks = ExpiringDict(max_age_seconds=60*60, max_len=100_000)
+
+##################################### Server utils ########################################
+def background_task(fn):
+    """Decorator to run fn in the background task and return a URL to check the result"""
+    @wraps(fn)
+    async def wrapper(*args, **kwargs):
+        req = kwargs.get("req")
+        async def task_fn():
+            return await fn(*args, **kwargs)
+        task_id = uuid4()
+        tasks[task_id] = asyncio.create_task(task_fn())
+        return req.url_for("result", id=task_id)
+    return wrapper
+
+async def body_to_md_middleware(req: Request) -> str:
+    html = await req.body()
+    return html_to_md(html)
+
+@app.get("/result/{id}", name="result")
+async def result(id: UUID):
+    if id not in tasks:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No task found")
+    try:
+        return await tasks[id]
+    except Exception as e:
+        log.error(f"Failed to execute task {id=}", e)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Task failed: {e}")
+
+##################################### Calendar API ########################################
 
 class Calendar(BaseModel):
     title: str
@@ -38,6 +72,12 @@ class Calendar(BaseModel):
             system_prompt="From the user's input, extract a calendar invite"
         ).run(f"I have extracted {markdown=} from {url=}")
 
+    @app.post("/calendarize")
+    @background_task
+    async def api(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
+        result = await Calendar.from_llm(url=url, markdown=markdown)
+        return RedirectResponse(result.data.gcal_url(url))
+
     def gcal_url(self, original_url: HttpUrl) -> HttpUrl:
         def format_date(date: datetime) -> str:
             return date.strftime('%Y%m%dT%H%M%SZ')
@@ -51,6 +91,7 @@ class Calendar(BaseModel):
         }
         return HttpUrl(f"https://calendar.google.com/calendar/render?{urlencode(gcal_params)}")
 
+##################################### Summary API ########################################
 
 class Summary(BaseModel):
     title: str = Field(description="A short title (max 4-5 words)")
@@ -71,48 +112,11 @@ class Summary(BaseModel):
             )
         ).run(f"I have extracted {markdown=} from {url=}")
 
+    @app.post("/summarize")
+    @background_task
+    async def api(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
+        result = await Summary.from_llm(url=url, markdown=markdown)
+        return HTMLResponse(result.data.to_html(url))
+
     def to_html(self, url: HttpUrl) -> str:
         return md_to_html(f"# [{self.title}]({str(url)})\n\n{self.summary}")
-
-
-app = FastAPI()
-
-tasks = ExpiringDict(max_age_seconds=60*60, max_len=100_000)
-
-def background_task(fn):
-    @wraps(fn)
-    async def wrapper(*args, **kwargs):
-        req = kwargs.get("req")
-        async def task_fn():
-            return await fn(*args, **kwargs)
-        task_id = uuid4()
-        tasks[task_id] = asyncio.create_task(task_fn())
-        return req.url_for("result", id=task_id)
-    return wrapper
-
-@app.get("/result/{id}", name="result")
-async def result(id: UUID):
-    if id not in tasks:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No task found")
-    try:
-        return await tasks[id]
-    except Exception as e:
-        log.error(f"Failed to execute task {id=}", e)
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Task failed: {e}")
-
-async def body_to_md_middleware(req: Request) -> str:
-    html = await req.body()
-    return html_to_md(html)
-
-@app.post("/calendarize")
-@background_task
-async def calendarize(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
-    result = await Calendar.from_llm(url=url, markdown=markdown)
-    return RedirectResponse(result.data.gcal_url(url))
-
-
-@app.post("/summarize")
-@background_task
-async def summarize(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
-    result = await Summary.from_llm(url=url, markdown=markdown)
-    return HTMLResponse(result.data.to_html(url))
