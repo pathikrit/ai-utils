@@ -6,7 +6,7 @@ from urllib.parse import urlencode, quote_plus
 from uuid import uuid4, UUID
 from functools import wraps
 import logging
-from typing import List
+from typing import List, ClassVar
 
 from dotenv import load_dotenv
 
@@ -141,11 +141,9 @@ class Restaurant(BaseModel):
     @background_task
     async def api(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
         result = await Restaurant.from_llm(url=url, markdown=markdown)
-        return HTMLResponse(Restaurant.to_html(result.data))
+        return HTMLResponse(Restaurant.html.render(restaurants=result.data))
 
-    @staticmethod
-    def to_html(restaurants: List[Restaurant]) -> str:
-        template = Template("""
+    html: ClassVar[Template] = Template("""
 <% from urllib.parse import quote_plus %>
 <!DOCTYPE html>
 <html>
@@ -171,7 +169,8 @@ class Restaurant(BaseModel):
 </body>
 </html>
 """)
-        return template.render(restaurants=restaurants)
+
+####################################
 
 # TODO
 # serve README
