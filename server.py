@@ -156,19 +156,19 @@ def multi_open(urls: List[HttpUrl]) -> str:
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Multi Open</title>
-    <script type="text/javascript">
-        window.onload = function() {{
-            var urls = [{url_list}];
-            for (var i = 0; i < urls.length; i++) {{
-                window.open(urls[i], '_blank');
-            }}
-        }};
-    </script>
+  <meta charset="utf-8">
+  <title>Multi Open</title>
+  <script type="text/javascript">
+    window.onload = () => {{
+      const urls = [{url_list}];
+      for (const url of urls) {{
+        window.open(url, '_blank');
+      }}
+    }};
+  </script>
 </head>
 <body>
-    <p>Opening multiple {url_list}.</p>
+  <p>Opening multiple URLs.</p>
 </body>
 </html>
 """
