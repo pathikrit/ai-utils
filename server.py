@@ -143,14 +143,10 @@ class Restaurant(BaseModel):
         result = await Restaurant.from_llm(url=url, markdown=markdown)
         return HTMLResponse(Restaurant.to_html(result.data))
 
-    @property
-    def search_url(self) -> (str, str):
-        query = " ".join([self.name, self.location or ""])
-        return query, f"https://www.google.com/search?q={quote_plus(query)}"
-
     @staticmethod
     def to_html(restaurants: List[Restaurant]) -> str:
         template = Template("""
+<% from urllib.parse import quote_plus %>
 <!DOCTYPE html>
 <html>
 <head>
@@ -159,13 +155,16 @@ class Restaurant(BaseModel):
   <script type="text/javascript">
     window.onload = () => document
         .querySelectorAll("a.multi-open")
-        .forEach(link => window.open(link.href, '_blank');
+        .forEach(link => window.open(link.href, '_blank'));
   </script>
 </head>
 <body>
   <ul>
     % for restaurant in restaurants:
-      % set text, link = restaurant.search_url
+      <%
+         text = " ".join([restaurant.name, restaurant.location or ""])
+         link = "https://www.google.com/search?q=" + quote_plus(text)
+      %>
       <li><a class="multi-open" href="${link}" target="_blank">${text}</a></li>
     % endfor
   </ul>
