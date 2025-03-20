@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import RedirectResponse, HTMLResponse
 
+from expiringdict import ExpiringDict
+
 from pydantic import BaseModel, HttpUrl, Field
 from pydantic_ai import Agent
 
@@ -75,7 +77,7 @@ class Summary(BaseModel):
 
 app = FastAPI()
 
-tasks = dict()
+tasks = ExpiringDict(max_age_seconds=60*60, max_len=100_000)
 
 def background_task(fn):
     @wraps(fn)
@@ -83,7 +85,7 @@ def background_task(fn):
         req = kwargs.get("req")
         async def task_fn():
             return await fn(*args, **kwargs)
-        task_id: UUID = uuid4()
+        task_id = uuid4()
         tasks[task_id] = asyncio.create_task(task_fn())
         return req.url_for("result", id=task_id)
     return wrapper
@@ -91,12 +93,12 @@ def background_task(fn):
 @app.get("/result/{id}", name="result")
 async def result(id: UUID):
     if id not in tasks:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No task with {id=}")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No task found")
     try:
         return await tasks[id]
     except Exception as e:
-        log.error(e)
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+        log.error(f"Failed to execute task {id=}", e)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Task failed: {e}")
 
 async def body_to_md_middleware(req: Request) -> str:
     html = await req.body()
@@ -106,7 +108,6 @@ async def body_to_md_middleware(req: Request) -> str:
 @background_task
 async def calendarize(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
     result = await Calendar.from_llm(url=url, markdown=markdown)
-    log.info(result)
     return RedirectResponse(result.data.gcal_url(url))
 
 
@@ -114,5 +115,4 @@ async def calendarize(url: HttpUrl, req: Request, markdown: str = Depends(body_t
 @background_task
 async def summarize(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
     result = await Summary.from_llm(url=url, markdown=markdown)
-    log.info(result)
     return HTMLResponse(result.data.to_html(url))

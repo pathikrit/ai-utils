@@ -13,6 +13,7 @@ markdownify = "^1.1.0"
 python-dotenv = "^1.0.1"
 fastapi = {extras = ["standard"], version = "^0.115.11"}
 markdown = "^3.7"
+expiringdict = "^1.2.2"
 
 
 [build-system]
