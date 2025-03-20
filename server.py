@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime
 from urllib.parse import urlencode
 from uuid import uuid4, UUID
+from functools import wraps
 
 from dotenv import load_dotenv
 
@@ -70,10 +71,16 @@ app = FastAPI()
 
 tasks = dict()
 
-def background_task(fn) -> UUID:
-    id = uuid4()
-    tasks[id] = asyncio.create_task(fn())
-    return id
+def background_task(fn):
+    @wraps(fn)
+    async def wrapper(*args, **kwargs):
+        req = kwargs.get("req")
+        async def task_fn():
+            return await fn(*args, **kwargs)
+        task_id: UUID = uuid4()
+        tasks[task_id] = asyncio.create_task(task_fn())
+        return req.url_for("result", id=task_id)
+    return wrapper
 
 @app.get("/result/{id}", name="result")
 async def result(id: UUID):
@@ -84,21 +91,20 @@ async def result(id: UUID):
     except Exception as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
 
-@app.post("/calendarize")
-async def calendarize(url: HttpUrl, req: Request):
+async def body_to_md_middleware(req: Request) -> str:
     html = await req.body()
-    async def fn():
-        prompt = f"I have extracted content={html_to_md(html)} from {url=}"
-        result = await Agents.calendar.run(prompt)
-        return RedirectResponse(result.data.gcal_url(url))
-    return req.url_for("result", id=background_task(fn))
+    return html_to_md(html)
+
+@app.post("/calendarize")
+@background_task
+async def calendarize(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
+    result = await Agents.calendar.run(f"I have extracted {markdown=} from {url=}")
+    return RedirectResponse(result.data.gcal_url(url))
 
 
 @app.post("/summarize")
-async def summarize(url: HttpUrl, req: Request):
-    html = await req.body()
-    async def fn():
-        prompt = f"I have extracted content={html_to_md(html)} from {url=}"
-        result = await Agents.summary.run(prompt)
-        return HTMLResponse(result.data.html(url))
-    return req.url_for("result", id=background_task(fn))
+@background_task
+async def summarize(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
+    result = await Agents.summary.run(f"I have extracted {markdown=} from {url=}")
+    return HTMLResponse(result.data.html(url))
+
