@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from uuid import uuid4, UUID
 from functools import wraps
 import logging
+from typing import List
 
 from dotenv import load_dotenv
 
@@ -120,3 +121,23 @@ class Summary(BaseModel):
 
     def to_html(self, url: HttpUrl) -> str:
         return md_to_html(f"# [{self.title}]({str(url)})\n\n{self.summary}")
+
+##################################### Restaurant API ########################################
+
+class Restaurant(BaseModel):
+    name: str = Field(description="Name of the restaurant (or bar, cafe, etc.)")
+    location: str | None = Field(description="City or neighborhood name e.g. 'West Village' or 'Brooklyn' or 'NYC' or 'Austin, TX'")
+
+    @classmethod
+    def from_llm(cls, url: HttpUrl, markdown: str):
+        return Agent(
+            model="gpt-4o",
+            result_type=List[cls],
+            system_prompt="Extract all restaurants mentioned in the user's input"
+        ).run(f"I have extracted {markdown=} from {url=}")
+
+    @app.post("/restaurantize")
+    @background_task
+    async def api(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
+        result = await Restaurant.from_llm(url=url, markdown=markdown)
+        return result.data
