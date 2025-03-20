@@ -31,31 +31,33 @@ app = FastAPI()
 tasks = ExpiringDict(max_age_seconds=60*60, max_len=100_000)
 
 ##################################### Server utils ########################################
-def background_task(fn):
-    """Decorator to run fn in the background task and return a URL to check the result"""
-    @wraps(fn)
-    async def wrapper(*args, **kwargs):
-        req = kwargs.get("req")
-        async def task_fn():
-            return await fn(*args, **kwargs)
-        task_id = uuid4()
-        tasks[task_id] = asyncio.create_task(task_fn())
-        return req.url_for("result", id=task_id)
-    return wrapper
 
-async def body_to_md_middleware(req: Request) -> str:
-    html = await req.body()
-    return html_to_md(html)
+class Server:
+    def background_task(fn):
+        """Decorator to run fn in the background task and return a URL to check the result"""
+        @wraps(fn)
+        async def wrapper(*args, **kwargs):
+            req = kwargs.get("req")
+            async def task_fn():
+                return await fn(*args, **kwargs)
+            task_id = uuid4()
+            tasks[task_id] = asyncio.create_task(task_fn())
+            return req.url_for("result", id=task_id)
+        return wrapper
 
-@app.get("/result/{id}", name="result")
-async def result(id: UUID):
-    if id not in tasks:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No task found")
-    try:
-        return await tasks[id]
-    except Exception as e:
-        log.error(f"Failed to execute task {id=}", e)
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Task failed: {e}")
+    async def body_to_md_middleware(req: Request) -> str:
+        html = await req.body()
+        return html_to_md(html)
+
+    @app.get("/result/{id}", name="result")
+    async def result(id: UUID):
+        if id not in tasks:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"No task found")
+        try:
+            return await tasks[id]
+        except Exception as e:
+            log.error(f"Failed to execute task {id=}", e)
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Task failed: {e}")
 
 ##################################### Calendar API ########################################
 
@@ -75,8 +77,8 @@ class Calendar(BaseModel):
         ).run(f"I have extracted {markdown=} from {url=}")
 
     @app.post("/calendarize")
-    @background_task
-    async def api(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
+    @Server.background_task
+    async def api(url: HttpUrl, req: Request, markdown: str = Depends(Server.body_to_md_middleware)):
         result = await Calendar.from_llm(url=url, markdown=markdown)
         return RedirectResponse(result.data.gcal_url(url))
 
@@ -115,8 +117,8 @@ class Summary(BaseModel):
         ).run(f"I have extracted {markdown=} from {url=}")
 
     @app.post("/summarize")
-    @background_task
-    async def api(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
+    @Server.background_task
+    async def api(url: HttpUrl, req: Request, markdown: str = Depends(Server.body_to_md_middleware)):
         result = await Summary.from_llm(url=url, markdown=markdown)
         return HTMLResponse(result.data.to_html(url))
 
@@ -138,8 +140,8 @@ class Restaurant(BaseModel):
         ).run(f"I have extracted {markdown=} from {url=}")
 
     @app.post("/restaurantize")
-    @background_task
-    async def api(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
+    @Server.background_task
+    async def api(url: HttpUrl, req: Request, markdown: str = Depends(Server.body_to_md_middleware)):
         result = await Restaurant.from_llm(url=url, markdown=markdown)
         return HTMLResponse(Restaurant.html.render(restaurants=result.data))
 
@@ -152,8 +154,8 @@ class Restaurant(BaseModel):
   <title>Restaurants</title>
   <script type="text/javascript">
     window.onload = () => document
-        .querySelectorAll("a.multi-open")
-        .forEach(link => window.open(link.href, '_blank'));
+      .querySelectorAll("a.multi-open")
+      .forEach(link => window.open(link.href, '_blank'));
   </script>
 </head>
 <body>
