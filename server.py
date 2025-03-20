@@ -26,6 +26,14 @@ class Calendar(BaseModel):
     location: str | None
     details: str | None
 
+    @classmethod
+    def from_prompt(cls, text: str):
+        return Agent(
+            model="gpt-4o",
+            result_type=cls,
+            system_prompt="From the user's input, extract a calendar invite"
+        ).run(text)
+
     def gcal_url(self, original_url: HttpUrl) -> HttpUrl:
         def format_date(date: datetime) -> str:
             return date.strftime('%Y%m%dT%H%M%SZ')
@@ -44,28 +52,24 @@ class Summary(BaseModel):
     title: str = Field(description="A short title (max 4-5 words)")
     summary: str = Field(description="A short Markdown note with relevant sections, sub-sections - each with bulleted and numbered lists and sub-lists.")
 
+    @classmethod
+    def from_prompt(cls, text: str):
+        return Agent(
+            model="gpt-4o",
+            result_type=cls,
+            system_prompt=(
+                "Generate a short title and summarize the user's content\n"
+                "Summary must be valid markdown; the more structured the document the better\n"
+                "Be very short and succinct for each bulleted item.\n"
+                "Feel free to include citations or links to products and resources as inline hyperlinks in Markdown.\n"
+                "Also, feel free to tabulate in markdown if needed.\n"
+                "Ignore disclaimers, self-promotions, acknowledgements etc.\n"
+            )
+        ).run(text)
+
     def html(self, url: HttpUrl) -> str:
         return md_to_html(f"# [{self.title}]({str(url)})\n\n{self.summary}")
 
-
-class Agents:
-    calendar = Agent(
-        model="gpt-4o",
-        result_type=Calendar,
-        system_prompt="From the user's input, extract a calendar invite"
-    )
-    summary = Agent(
-        model="gpt-4o",
-        result_type=Summary,
-        system_prompt=(
-            "Generate a short title and summarize the user's content\n"
-            "Summary must be valid markdown; the more structured the document the better\n"
-            "Be very short and succinct for each bulleted item.\n"
-            "Feel free to include citations or links to products and resources as inline hyperlinks in Markdown.\n"
-            "Also, feel free to tabulate in markdown if needed.\n"
-            "Ignore disclaimers, self-promotions, acknowledgements etc.\n"
-        )
-    )
 
 app = FastAPI()
 
@@ -98,13 +102,12 @@ async def body_to_md_middleware(req: Request) -> str:
 @app.post("/calendarize")
 @background_task
 async def calendarize(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
-    result = await Agents.calendar.run(f"I have extracted {markdown=} from {url=}")
+    result = await Calendar.from_prompt(f"I have extracted {markdown=} from {url=}")
     return RedirectResponse(result.data.gcal_url(url))
 
 
 @app.post("/summarize")
 @background_task
 async def summarize(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
-    result = await Agents.summary.run(f"I have extracted {markdown=} from {url=}")
+    result = await Summary.from_prompt(f"I have extracted {markdown=} from {url=}")
     return HTMLResponse(result.data.html(url))
-
