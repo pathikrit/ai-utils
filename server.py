@@ -70,10 +70,19 @@ app = FastAPI()
 
 tasks = dict()
 
-def add_task(req, fn) -> UUID:
+def add_task(req: Request, fn) -> HttpUrl:
     id = uuid4()
     tasks[id] = asyncio.create_task(fn())
     return req.url_for("result", id=id)
+
+@app.get("/result/{id}", name="result")
+async def result(id: UUID):
+    if id not in tasks:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No task with {id=}")
+    try:
+        return await tasks[id]
+    except Exception as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @app.post("/calendarize")
 async def calendarize(url: HttpUrl, req: Request):
@@ -85,19 +94,11 @@ async def calendarize(url: HttpUrl, req: Request):
     return add_task(req, fn)
 
 
-@app.get("/result/{id}", name="result")
-async def result(id: UUID):
-    if id not in tasks:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No task with {id=}")
-    try:
-        return await tasks[id]
-    except Exception as e:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
 @app.post("/summarize")
 async def summarize(url: HttpUrl, req: Request):
     body = await req.body()
-    content = html_to_md(body)
-    result = await Agents.summary.run(f"I have extracted {content=} from {url=}")
-    return result.data.html(url)
+    async def fn():
+        content = html_to_md(body)
+        result = await Agents.summary.run(f"I have extracted {content=} from {url=}")
+        return HTMLResponse(result.data.html(url))
+    return add_task(req, fn)
