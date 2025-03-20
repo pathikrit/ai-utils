@@ -1,20 +1,20 @@
-[project]
+[tool.poetry]
 name = "ai-utils"
 version = "0.0.1"
-description = "Little AI utils I use"
-authors = [{name = "pathikrit",email = "pathikritbhowmick@msn.com"}]
+description = ""
+authors = ["pathikrit <pathikritbhowmick@msn.com>"]
 readme = "README.md"
-requires-python = ">=3.10,<4.0"
-dependencies = [
-    "fastapi[standard] (>=0.115.11,<0.116.0)",
-    "uvicorn[standard] (>=0.34.0,<0.35.0)",
-    "pydantic-ai (>=0.0.41,<0.0.42)",
-    "markitdown[all] (>=0.0.2,<0.0.3)",
-    "markdownify (>=1.1.0,<2.0.0)",
-    "python-dotenv (>=1.0.1,<2.0.0)",
-]
+
+[tool.poetry.dependencies]
+python = "3.11.6"
+pydantic-ai = "^0.0.42"
+markitdown = "^0.0.2"
+markdownify = "^1.1.0"
+python-dotenv = "^1.0.1"
+fastapi = {extras = ["standard"], version = "^0.115.11"}
+markdown = "^3.7"
 
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
+requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

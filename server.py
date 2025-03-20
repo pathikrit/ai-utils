@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from urllib.parse import urlencode
 from uuid import uuid4, UUID
@@ -69,31 +70,28 @@ app = FastAPI()
 
 tasks = dict()
 
-async def add_task(fn) -> UUID:
+def add_task(req, fn) -> UUID:
     id = uuid4()
-    tasks[id] = asyncio.run(fn())
-    return id
+    tasks[id] = asyncio.create_task(fn())
+    return req.url_for("result", id=id)
 
 @app.post("/calendarize")
 async def calendarize(url: HttpUrl, req: Request):
     body = await req.body()
-    content = html_to_md(body)
-    result = await Agents.calendar.run(f"I have extracted {content=} from {url=}")
-    return result.data.gcal_url(url)
+    async def fn():
+        content = html_to_md(body)
+        result = await Agents.calendar.run(f"I have extracted {content=} from {url=}")
+        return RedirectResponse(result.data.gcal_url(url))
+    return add_task(req, fn)
 
 
 @app.get("/result/{id}", name="result")
 async def result(id: UUID):
-    task = tasks.get(id)
-    if not task:
+    if id not in tasks:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"No task with {id=}")
     try:
-        result = await task
-        breakpoint()
-        return result
+        return await tasks[id]
     except Exception as e:
-        breakpoint()
-        print(e)
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
