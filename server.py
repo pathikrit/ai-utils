@@ -143,7 +143,8 @@ class Restaurant(BaseModel):
     @Server.background_task
     async def api(url: HttpUrl, req: Request, markdown: str = Depends(Server.body_to_md_middleware)):
         result = await Restaurant.from_llm(url=url, markdown=markdown)
-        return HTMLResponse(Restaurant.html.render(restaurants=result.data))
+        html = Restaurant.html.render(restaurants=result.data, original_url=url)
+        return HTMLResponse(html)
 
     html: ClassVar[Template] = Template("""
 <% from urllib.parse import quote_plus %>
@@ -159,6 +160,7 @@ class Restaurant(BaseModel):
   </script>
 </head>
 <body>
+  <h1><a href="${original_url}" target="_blank">Restaurants</a></h1>
   <ul>
     % for restaurant in restaurants:
       <%
