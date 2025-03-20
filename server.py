@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote_plus
 from uuid import uuid4, UUID
 from functools import wraps
 import logging
@@ -140,4 +140,35 @@ class Restaurant(BaseModel):
     @background_task
     async def api(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
         result = await Restaurant.from_llm(url=url, markdown=markdown)
-        return result.data
+        return HTMLResponse(multi_open([r.search_url for r in result.data]))
+
+    @property
+    def search_url(self) -> str:
+        query = " ".join([self.name, self.location or ""])
+        return f"https://www.google.com/search?q={quote_plus(query)}"
+
+# TODO
+# serve README
+
+def multi_open(urls: List[HttpUrl]) -> str:
+    url_list = ",\n".join(f'"{str(url)}"' for url in urls)
+    return f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Multi Open</title>
+    <script type="text/javascript">
+        window.onload = function() {{
+            var urls = [{url_list}];
+            for (var i = 0; i < urls.length; i++) {{
+                window.open(urls[i], '_blank');
+            }}
+        }};
+    </script>
+</head>
+<body>
+    <p>Opening multiple {url_list}.</p>
+</body>
+</html>
+"""
