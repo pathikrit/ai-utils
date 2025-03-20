@@ -18,7 +18,7 @@ from markdown import markdown as md_to_html
 
 load_dotenv()
 
-class CalendarResponse(BaseModel):
+class Calendar(BaseModel):
     title: str
     start: datetime
     end: datetime
@@ -39,7 +39,7 @@ class CalendarResponse(BaseModel):
         return HttpUrl(f"https://calendar.google.com/calendar/render?{urlencode(gcal_params)}")
 
 
-class SummaryResponse(BaseModel):
+class Summary(BaseModel):
     title: str = Field(description="A short title (max 4-5 words)")
     summary: str = Field(description="A short Markdown note with relevant sections, sub-sections - each with bulleted and numbered lists and sub-lists.")
 
@@ -50,12 +50,12 @@ class SummaryResponse(BaseModel):
 class Agents:
     calendar = Agent(
         model="gpt-4o",
-        result_type=CalendarResponse,
+        result_type=Calendar,
         system_prompt="From the user's input, extract a calendar invite"
     )
     summary = Agent(
         model="gpt-4o",
-        result_type=SummaryResponse,
+        result_type=Summary,
         system_prompt=(
             "Generate a short title and summarize the user's content\n"
             "Summary must be valid markdown; the more structured the document the better\n"
@@ -70,10 +70,10 @@ app = FastAPI()
 
 tasks = dict()
 
-def add_task(req: Request, fn) -> HttpUrl:
+def background_task(fn) -> UUID:
     id = uuid4()
     tasks[id] = asyncio.create_task(fn())
-    return req.url_for("result", id=id)
+    return id
 
 @app.get("/result/{id}", name="result")
 async def result(id: UUID):
@@ -82,23 +82,23 @@ async def result(id: UUID):
     try:
         return await tasks[id]
     except Exception as e:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
 
 @app.post("/calendarize")
 async def calendarize(url: HttpUrl, req: Request):
-    body = await req.body()
+    html = await req.body()
     async def fn():
-        content = html_to_md(body)
-        result = await Agents.calendar.run(f"I have extracted {content=} from {url=}")
+        prompt = f"I have extracted content={html_to_md(html)} from {url=}"
+        result = await Agents.calendar.run(prompt)
         return RedirectResponse(result.data.gcal_url(url))
-    return add_task(req, fn)
+    return req.url_for("result", id=background_task(fn))
 
 
 @app.post("/summarize")
 async def summarize(url: HttpUrl, req: Request):
-    body = await req.body()
+    html = await req.body()
     async def fn():
-        content = html_to_md(body)
-        result = await Agents.summary.run(f"I have extracted {content=} from {url=}")
+        prompt = f"I have extracted content={html_to_md(html)} from {url=}"
+        result = await Agents.summary.run(prompt)
         return HTMLResponse(result.data.html(url))
-    return add_task(req, fn)
+    return req.url_for("result", id=background_task(fn))
