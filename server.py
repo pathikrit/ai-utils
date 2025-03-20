@@ -5,6 +5,7 @@ from datetime import datetime
 from urllib.parse import urlencode
 from uuid import uuid4, UUID
 from functools import wraps
+import logging
 
 from dotenv import load_dotenv
 
@@ -18,6 +19,7 @@ from markdownify import markdownify as html_to_md
 from markdown import markdown as md_to_html
 
 load_dotenv()
+log = logging.getLogger(__name__)
 
 class Calendar(BaseModel):
     title: str
@@ -93,6 +95,7 @@ async def result(id: UUID):
     try:
         return await tasks[id]
     except Exception as e:
+        log.error(e)
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
 
 async def body_to_md_middleware(req: Request) -> str:
@@ -103,6 +106,7 @@ async def body_to_md_middleware(req: Request) -> str:
 @background_task
 async def calendarize(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
     result = await Calendar.from_llm(url=url, markdown=markdown)
+    log.info(result)
     return RedirectResponse(result.data.gcal_url(url))
 
 
@@ -110,4 +114,5 @@ async def calendarize(url: HttpUrl, req: Request, markdown: str = Depends(body_t
 @background_task
 async def summarize(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
     result = await Summary.from_llm(url=url, markdown=markdown)
+    log.info(result)
     return HTMLResponse(result.data.to_html(url))
