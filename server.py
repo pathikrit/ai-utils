@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse
+from mako.template import Template
 
 from expiringdict import ExpiringDict
 
@@ -140,35 +141,38 @@ class Restaurant(BaseModel):
     @background_task
     async def api(url: HttpUrl, req: Request, markdown: str = Depends(body_to_md_middleware)):
         result = await Restaurant.from_llm(url=url, markdown=markdown)
-        return HTMLResponse(multi_open([r.search_url for r in result.data]))
+        return HTMLResponse(Restaurant.to_html(result.data))
 
     @property
-    def search_url(self) -> str:
+    def search_url(self) -> (str, str):
         query = " ".join([self.name, self.location or ""])
-        return f"https://www.google.com/search?q={quote_plus(query)}"
+        return query, f"https://www.google.com/search?q={quote_plus(query)}"
 
-# TODO
-# serve README
-
-def multi_open(urls: List[HttpUrl]) -> str:
-    url_list = ",\n".join(f'"{str(url)}"' for url in urls)
-    return f"""
+    @staticmethod
+    def to_html(restaurants: List[Restaurant]) -> str:
+        template = Template("""
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Multi Open</title>
+  <title>Restaurants</title>
   <script type="text/javascript">
-    window.onload = () => {{
-      const urls = [{url_list}];
-      for (const url of urls) {{
-        window.open(url, '_blank');
-      }}
-    }};
+    window.onload = () => document
+        .querySelectorAll("a.multi-open")
+        .forEach(link => window.open(link.href, '_blank');
   </script>
 </head>
 <body>
-  <p>Opening multiple URLs.</p>
+  <ul>
+    % for restaurant in restaurants:
+      % set text, link = restaurant.search_url
+      <li><a class="multi-open" href="${link}" target="_blank">${text}</a></li>
+    % endfor
+  </ul>
 </body>
 </html>
-"""
+""")
+        return template.render(restaurants=restaurants)
+
+# TODO
+# serve README
