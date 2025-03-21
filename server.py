@@ -49,6 +49,12 @@ class Server:
         html = await req.body()
         return html_to_md(html)
 
+    @app.get("/")
+    async def root():
+        with open("README.md", "r", encoding="utf-8") as f:
+            markdown = f.read()
+        return HTMLResponse(md_to_html(markdown))
+
     @app.get("/result/{id}", name="result")
     async def result(id: UUID):
         if id not in tasks:
@@ -164,7 +170,7 @@ class Restaurant(BaseModel):
   <ul>
     % for restaurant in restaurants:
       <%
-         text = " ".join([restaurant.name, restaurant.location or ""])
+         text = " ".join([restaurant.name, restaurant.location or "", "restaurant"])
          link = "https://www.google.com/search?q=" + quote_plus(text)
       %>
       <li><a class="multi-open" href="${link}" target="_blank">${text}</a></li>
@@ -174,7 +180,4 @@ class Restaurant(BaseModel):
 </html>
 """)
 
-####################################
-
-# TODO
-# serve README
+########################################################################
