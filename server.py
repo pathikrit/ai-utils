@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 app = FastAPI()
 tasks = ExpiringDict(max_age_seconds=60*60, max_len=100_000)
 
-##################################### Server utils ########################################
+######################################### Server ##############################################
 
 class Server:
     def background_task(fn):
@@ -167,17 +167,17 @@ class Restaurant(BaseModel):
 </head>
 <body>
   <h1><a href="${original_url}" target="_blank">Restaurants</a></h1>
-  <ul>
+  <ol>
     % for restaurant in restaurants:
       <%
          text = " ".join([restaurant.name, restaurant.location or "", "restaurant"])
          link = "https://www.google.com/search?q=" + quote_plus(text)
       %>
-      <li><a class="multi-open" href="${link}" target="_blank">${text}</a></li>
+      <li><a class="multi-open" href="${restaurant.name}" target="_blank">${text}</a></li>
     % endfor
-  </ul>
+  </ol>
 </body>
 </html>
 """)
 
-########################################################################
+#############################################################################################
