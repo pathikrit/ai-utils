@@ -173,7 +173,7 @@ class Restaurant(BaseModel):
          text = " ".join([restaurant.name, restaurant.location or "", "restaurant"])
          link = "https://www.google.com/search?q=" + quote_plus(text)
       %>
-      <li><a class="multi-open" href="${restaurant.name}" target="_blank">${text}</a></li>
+      <li><a class="multi-open" href="${link}" target="_blank">${restaurant.name}</a></li>
     % endfor
   </ol>
 </body>
