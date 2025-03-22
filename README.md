@@ -19,4 +19,5 @@ poetry run fastapi dev server.py
 ## APIs
 - `POST /summarize?url=` (with body = HTML of the page)
 - `POST /calendarize?url=` (with body = HTML of the page)
+- `POST /restaurantize?url=` (with body = HTML of the page)
 
