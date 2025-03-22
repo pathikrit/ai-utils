@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "ai-utils"
+version = "0.0.1"
+description = ""
+authors = ["pathikrit <pathikritbhowmick@msn.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "3.11.6"
+pydantic-ai = "^0.0.42"
+markitdown = "^0.0.2"
+markdownify = "^1.1.0"
+python-dotenv = "^1.0.1"
+fastapi = {extras = ["standard"], version = "^0.115.11"}
+markdown = "^3.7"
+expiringdict = "^1.2.2"
+mako = "^1.3.9"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
