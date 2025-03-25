@@ -6,7 +6,7 @@ from urllib.parse import urlencode, quote_plus
 from uuid import uuid4, UUID
 from functools import wraps
 import logging
-from typing import List, ClassVar
+from typing import List, ClassVar, Literal
 
 from dotenv import load_dotenv
 
@@ -136,6 +136,7 @@ class Summary(BaseModel):
 class Restaurant(BaseModel):
     name: str = Field(description="Name of the restaurant (or bar, cafe, etc.)")
     location: str | None = Field(description="City or neighborhood name e.g. 'West Village' or 'Brooklyn' or 'NYC' or 'Austin, TX'")
+    type: Literal["Restaurant", "Bar", "Cafe"] = Field(description="Type of establishment")
 
     @classmethod
     def from_llm(cls, url: HttpUrl, markdown: str):
@@ -170,7 +171,7 @@ class Restaurant(BaseModel):
   <ol>
     % for restaurant in restaurants:
       <%
-         text = " ".join([restaurant.name, restaurant.location or "", "restaurant"])
+         text = " ".join([restaurant.name, restaurant.location or "", restaurant.type])
          link = "https://www.google.com/search?q=" + quote_plus(text)
       %>
       <li><a class="multi-open" href="${link}" target="_blank">${restaurant.name}</a></li>
