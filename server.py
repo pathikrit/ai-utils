@@ -193,7 +193,7 @@ class ImageTag(BaseModel):
     def from_llm(self):
         return image_generation(
             model="dall-e-3",
-            prompt=f"Generate a story book image for the following prompt: {self.prompt}",
+            prompt=f"Generate a Studio Ghibli style story book image for the following prompt: {self.prompt}",
             response_format="url",
             size=f"{ImageTag.size}x{ImageTag.size}",
         )

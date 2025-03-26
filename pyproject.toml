@@ -6,7 +6,7 @@ authors = ["pathikrit <pathikritbhowmick@msn.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.11.6,<3.12.0"
+python = "3.11.*"
 pydantic-ai = "^0.0.42"
 markitdown = "^0.0.2"
 markdownify = "^1.1.0"

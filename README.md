@@ -5,9 +5,8 @@ Random collection of AI utils API I use
 ```shell
 git clone git@github.com:pathikrit/ai-utils.git
 cd ai-utils/
-
 echo "OPENAI_API_KEY=???" >> .env
-
+poetry env use 3.11
 poetry install --no-root
 ```
 
@@ -15,9 +14,4 @@ poetry install --no-root
 ```shell
 poetry run fastapi dev server.py
 ```
-
-## APIs
-- `POST /summarize?url=` (with body = HTML of the page)
-- `POST /calendarize?url=` (with body = HTML of the page)
-- `POST /restaurantize?url=` (with body = HTML of the page)
-
+Then, open <http://localhost:8000/docs>
