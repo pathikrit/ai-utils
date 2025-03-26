@@ -18,6 +18,7 @@ from expiringdict import ExpiringDict
 
 from pydantic import BaseModel, HttpUrl, Field
 from pydantic_ai import Agent
+from litellm import image_generation
 
 from markdownify import markdownify as html_to_md
 from markdown import markdown as md_to_html
@@ -183,21 +184,42 @@ class Restaurant(BaseModel):
 
 ##################################### Story API ########################################
 
-class Story:
+class ImageTag(BaseModel):
+    id: int = Field(description="Image id starting from 1 - I will use this to replace the [[replace_image_X]] tags")
+    prompt: str = Field(description="The short prompt for the image that I will feed to the image generation API")
 
-    @staticmethod
-    def from_llm(prompt: str):
-        return Agent(
+    size: ClassVar[int] = 1024
+
+    def from_llm(self):
+        return image_generation(
+            model="dall-e-3",
+            prompt=f"Generate a story book image for the following prompt: {self.prompt}",
+            response_format="url",
+            size=f"{ImageTag.size}x{ImageTag.size}",
+        )
+
+class Story(BaseModel):
+    html: str = Field(description="The story")
+    images: List[ImageTag] = Field(description="The images for the story")
+
+    @app.get("/story")
+    async def api(prompt: str):
+        response = await Agent(
             model="gpt-4o",
             system_prompt=(
                 "My 3-year old son Aidan would give a prompt"
                 "You must generate an extremely creative and engaging story based on the prompt"
-                "The story must be suitable for a 3-year old child"
                 "Include him in the story also"
-            )
+                "The returned story must be in a beautiful HTML format with inline CSS"
+                "Also include placeholder image tags (2-3) as follows"
+                f"<img src='[[replace_image_1]]' width='{ImageTag.size}' height='{ImageTag.size}'/>"
+                "Return these tags separately with a short prompt that I would use an AI to generate the images"
+                "I will use the [[replace_image_X]] to replace with the image urls from image generation API separately"
+            ),
+            result_type=Story,
         ).run(prompt)
-
-    @app.get("/story")
-    async def api(prompt: str):
-        result = await Story.from_llm(prompt=prompt)
-        return HTMLResponse(result.data)
+        story = response.data
+        for image in story.images:
+            ai_image = image.from_llm()
+            story.html = story.html.replace(f"[[replace_image_{image.id}]]", ai_image.data[0].url)
+        return HTMLResponse(story.html)
