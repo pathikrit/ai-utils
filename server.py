@@ -181,4 +181,23 @@ class Restaurant(BaseModel):
 </html>
 """)
 
-#############################################################################################
+##################################### Story API ########################################
+
+class Story:
+
+    @staticmethod
+    def from_llm(prompt: str):
+        return Agent(
+            model="gpt-4o",
+            system_prompt=(
+                "My 3-year old son Aidan would give a prompt"
+                "You must generate an extremely creative and engaging story based on the prompt"
+                "The story must be suitable for a 3-year old child"
+                "Include him in the story also"
+            )
+        ).run(prompt)
+
+    @app.get("/story")
+    async def api(prompt: str):
+        result = await Story.from_llm(prompt=prompt)
+        return HTMLResponse(result.data)
