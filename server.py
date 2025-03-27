@@ -7,6 +7,7 @@ from uuid import uuid4, UUID
 from functools import wraps
 import logging
 from typing import List, ClassVar, Literal
+import json
 
 from dotenv import load_dotenv
 
@@ -16,7 +17,7 @@ from mako.template import Template
 
 from expiringdict import ExpiringDict
 
-from pydantic import BaseModel, HttpUrl, Field
+from pydantic import BaseModel, HttpUrl, Field, Json
 from pydantic_ai import Agent
 from litellm import image_generation
 
@@ -223,3 +224,46 @@ class Story(BaseModel):
             ai_image = image.from_llm()
             story.html = story.html.replace(f"[[replace_image_{image.id}]]", ai_image.data[0].url)
         return HTMLResponse(story.html)
+
+##################################### Tabs API ########################################
+
+class TabGroup(BaseModel):
+    group: str = Field(description="Name of the group - short single word")
+    tabIds: List[int] = Field(description="Set of tab ids in this group")
+
+    @classmethod
+    def from_llm(cls, tabs: Json):
+        return Agent(
+            model="gpt-4o",
+            result_type=List[cls],
+            system_prompt=(
+                "The user will provide a list of open tabs (id, url, page title)\n"
+                "Group them into DISTINCT groups and provide a short name for each group\n"
+                'e.g. "coding", "finance", "travel", "news", "shopping", "amazon", "ai" etc.\n'
+                "but feel free to create your own group names too.\n"
+                "If there are bunch of pages from same domain, then maybe just create a category with the domain name\n"
+                "unless its search engine like Google - then group based on what I am searching (see the page title)\n"
+                "If any page looks like tickets (for movies, shows or activities)\n"
+                "or reservations (for restaurants & bars) use the category 'date night'"
+            )
+        ).run(json.dumps(tabs))
+
+    @app.post("/tabolate")
+    async def api(req: Request):
+        tabs = await req.json()
+        result = await TabGroup.from_llm(tabs)
+        data = result.data
+
+        valid_tab_ids = {tab["tabId"] for tab in tabs}
+        new_groups = []
+
+        for tab_group in data:
+            tab_group.tabIds = set(tab_group.tabIds) & valid_tab_ids
+            if len(tab_group.tabIds) > 1:
+                new_groups.append(tab_group)
+                valid_tab_ids -= tab_group.tabIds
+
+        if valid_tab_ids:
+            new_groups.append(TabGroup(group="ungrouped", tabIds=valid_tab_ids))
+
+        return new_groups
