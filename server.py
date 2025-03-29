@@ -183,48 +183,6 @@ class Restaurant(BaseModel):
 </html>
 """)
 
-##################################### Story API ########################################
-
-class ImageTag(BaseModel):
-    id: int = Field(description="Image id starting from 1 - I will use this to replace the [[replace_image_X]] tags")
-    prompt: str = Field(description="The short prompt for the image that I will feed to the image generation API")
-
-    size: ClassVar[int] = 1024
-
-    def from_llm(self):
-        return image_generation(
-            model="dall-e-3",
-            prompt=f"Generate a Studio Ghibli style story book image for the following prompt: {self.prompt}",
-            response_format="url",
-            size=f"{ImageTag.size}x{ImageTag.size}",
-        )
-
-class Story(BaseModel):
-    html: str = Field(description="The story")
-    images: List[ImageTag] = Field(description="The images for the story")
-
-    @app.get("/story")
-    async def api(prompt: str):
-        response = await Agent(
-            model="gpt-4o",
-            system_prompt=(
-                "My 3-year old son Aidan would give a prompt"
-                "You must generate an extremely creative and engaging story based on the prompt"
-                "Include him in the story also"
-                "The returned story must be in a beautiful HTML format with inline CSS"
-                "Also include placeholder image tags (2-3) as follows"
-                f"<img src='[[replace_image_1]]' width='{ImageTag.size}' height='{ImageTag.size}'/>"
-                "Return these tags separately with a short prompt that I would use an AI to generate the images"
-                "I will use the [[replace_image_X]] to replace with the image urls from image generation API separately"
-            ),
-            result_type=Story,
-        ).run(prompt)
-        story = response.data
-        for image in story.images:
-            ai_image = image.from_llm()
-            story.html = story.html.replace(f"[[replace_image_{image.id}]]", ai_image.data[0].url)
-        return HTMLResponse(story.html)
-
 ##################################### Tabs API ########################################
 
 class TabGroup(BaseModel):
@@ -242,7 +200,8 @@ class TabGroup(BaseModel):
                 'e.g. "coding", "finance", "travel", "news", "shopping", "amazon", "ai" etc.\n'
                 "but feel free to create your own group names too.\n"
                 "If there are bunch of pages from same domain, then maybe just create a category with the domain name\n"
-                "unless its search engine like Google - then group based on what I am searching (see the page title)\n"
+                "unless its something like Google or ChatGPT - then group based on what I am searching (see the page title)\n"
+                "In general, rely on page title more than the domain\n",
                 "If any page looks like tickets (for movies, shows or activities)\n"
                 "or reservations (for restaurants & bars) use the category 'date night'"
             )
@@ -262,8 +221,5 @@ class TabGroup(BaseModel):
             if len(tab_group.tabIds) > 1:
                 new_groups.append(tab_group)
                 valid_tab_ids -= tab_group.tabIds
-
-        if valid_tab_ids:
-            new_groups.append(TabGroup(group="ungrouped", tabIds=valid_tab_ids))
 
         return new_groups
