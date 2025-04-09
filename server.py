@@ -19,7 +19,6 @@ from expiringdict import ExpiringDict
 
 from pydantic import BaseModel, HttpUrl, Field, Json
 from pydantic_ai import Agent
-from litellm import image_generation
 
 from markdownify import markdownify as html_to_md
 from markdown import markdown as md_to_html
