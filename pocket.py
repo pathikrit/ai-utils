@@ -16,6 +16,7 @@ def fetch(access_token: str, offset: int = 0):
             'access_token': access_token,
             'state': 'all',
             'detailType': 'simple',
+            'sort': 'oldest',
             'count': count,
             'offset': offset
         },
@@ -32,8 +33,8 @@ def fetch_df(access_token: str):
     return pl.DataFrame(fetch(access_token)).select([
         pl.col("item_id").alias("id"),
         pl.coalesce([pl.col("resolved_url"), pl.col("given_url")]).alias("url"),
-        pl.from_epoch("time_added", time_unit="s").dt.date(),
-        pl.from_epoch(pl.col("time_read").replace(0, None), time_unit="s").dt.date(),
+        pl.from_epoch("time_added", time_unit="s").dt.date().alias("date_added"),
+        pl.from_epoch(pl.col("time_read").replace(0, None), time_unit="s").dt.date().alias("date_read"),
     ])
 
 
