@@ -1,10 +1,11 @@
 import requests
 import polars as pl
 import time
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 CONSUMER_KEY = '11552-470488bc7a267c1c98f7695f'
 
-
+@retry(stop=stop_after_attempt(5), wait=wait_exponential())
 def fetch(access_token: str, offset: int = 0):
     time.sleep(0.5)  # be polite
     count = 100
