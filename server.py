@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from urllib.parse import urlencode, quote_plus
+from urllib.parse import urlencode
 from uuid import uuid4, UUID
 from functools import wraps
 import logging
@@ -19,7 +19,6 @@ from expiringdict import ExpiringDict
 
 from pydantic import BaseModel, HttpUrl, Field, Json
 from pydantic_ai import Agent
-from litellm import image_generation
 
 from markdownify import markdownify as html_to_md
 from markdown import markdown as md_to_html
