@@ -91,7 +91,7 @@ class Calendar(BaseModel):
 
     def gcal_url(self, original_url: HttpUrl) -> HttpUrl:
         def format_date(date: datetime) -> str:
-            return date.strftime('%Y%m%dT%H%M%SZ')
+            return date.strftime("%Y%m%dT%H%M%S")
 
         gcal_params = {
             "action": "TEMPLATE",
