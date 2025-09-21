@@ -32,6 +32,8 @@ log = logging.getLogger(__name__)
 app = FastAPI()
 tasks = ExpiringDict(max_age_seconds=60*60, max_len=100_000)
 
+DEFAULT_MODEL = "gpt-5-2025-08-07"
+
 ######################################### Server ##############################################
 
 class Server:
@@ -79,7 +81,7 @@ class Calendar(BaseModel):
     @classmethod
     def from_llm(cls, url: HttpUrl, markdown: str):
         return Agent(
-            model="gpt-4o",
+            model=DEFAULT_MODEL,
             result_type=cls,
             system_prompt="From the user's input, extract a calendar invite"
         ).run(f"I have extracted {markdown=} from {url=}")
@@ -112,7 +114,7 @@ class Summary(BaseModel):
     @classmethod
     def from_llm(cls, url: HttpUrl, markdown: str):
         return Agent(
-            model="gpt-4o",
+            model=DEFAULT_MODEL,
             result_type=cls,
             system_prompt=(
                 "Generate a short title and summarize the user's content\n"
@@ -143,7 +145,7 @@ class Restaurant(BaseModel):
     @classmethod
     def from_llm(cls, url: HttpUrl, markdown: str):
         return Agent(
-            model="gpt-4o",
+            model=DEFAULT_MODEL,
             result_type=List[cls],
             system_prompt="Extract all restaurants mentioned in the user's input"
         ).run(f"I have extracted {markdown=} from {url=}")
@@ -192,7 +194,7 @@ class TabGroup(BaseModel):
     @classmethod
     def from_llm(cls, tabs: Json):
         return Agent(
-            model="gpt-4o",
+            model=DEFAULT_MODEL,
             result_type=List[cls],
             system_prompt=(
                 "The user will provide a list of open tabs (id, url, page title)\n"
